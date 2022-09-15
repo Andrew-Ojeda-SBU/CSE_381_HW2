@@ -11,6 +11,12 @@ using namespace std;
 #include "basewin.h"
 #include "resource.h"
 
+#define BUTTONWIDTH 310
+#define BUTTONHEIGHT 100
+#define BUTTONXCOOR 20
+#define BUTTONYCOOR 20
+#define BUTTONPADDING 10
+
 template <class T> void SafeRelease(T **ppT)
 {
     if (*ppT)
@@ -406,7 +412,112 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
 
     HACCEL hAccel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCEL1));
 
+    /*--------------------------------------------------------------------
+        Instantiate all the buttons that this app will use.
+        the first five button will change with algorithm the user will
+        interface with. These buttons will change the enum value for the
+        main switch case, which change what the main window draws and will
+        change how the application takes in user input
+        The last button will simply close out the application
+    --------------------------------------------------------------------*/
+    HWND mdButton = CreateWindow(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"MINKOWSKI DIFFERENCE",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+        BUTTONXCOOR,         // x position 
+        BUTTONYCOOR,         // y position 
+        BUTTONWIDTH,        // Button width
+        BUTTONHEIGHT,        // Button height
+        win.Window(),     // Parent window
+        NULL,       // No menu.
+        hInstance,
+        NULL);      // Pointer not needed.
+
+    HWND msButton = CreateWindow(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"MINKOWSKI SUM",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+        BUTTONXCOOR,         // x position 
+        BUTTONYCOOR+(BUTTONHEIGHT+BUTTONPADDING),         // y position 
+        BUTTONWIDTH,        // Button width
+        BUTTONHEIGHT,        // Button height
+        win.Window(),     // Parent window
+        NULL,       // No menu.
+        hInstance,
+        NULL);      // Pointer not needed.
+
+    HWND qhButton = CreateWindow(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"QUICK HULL",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+        BUTTONXCOOR,         // x position 
+        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING)*2,         // y position 
+        BUTTONWIDTH,        // Button width
+        BUTTONHEIGHT,        // Button height
+        win.Window(),     // Parent window
+        NULL,       // No menu.
+        hInstance,
+        NULL);      // Pointer not needed.
+
+
+    HWND pchiButton = CreateWindow(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"POINT CONVEX HULL INTERSECTION",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+        BUTTONXCOOR,         // x position 
+        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING) * 3,         // y position 
+        BUTTONWIDTH,        // Button width
+        BUTTONHEIGHT,        // Button height
+        win.Window(),     // Parent window
+        NULL,       // No menu.
+        hInstance,
+        NULL);      // Pointer not needed.
+
+    HWND gjkButton = CreateWindow(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"GJK",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+        BUTTONXCOOR,         // x position 
+        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING) * 4,         // y position 
+        BUTTONWIDTH,        // Button width
+        BUTTONHEIGHT,        // Button height
+        win.Window(),     // Parent window
+        NULL,       // No menu.
+        hInstance,
+        NULL);      // Pointer not needed.
+
+    HWND eButton = CreateWindow(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"EXIT APPLICATION",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+        BUTTONXCOOR,         // x position 
+        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING) * 5,         // y position 
+        BUTTONWIDTH,        // Button width
+        BUTTONHEIGHT,        // Button height
+        win.Window(),     // Parent window
+        NULL,       // No menu.
+        hInstance,
+        NULL);      // Pointer not needed.
+
     ShowWindow(win.Window(), nCmdShow);
+
+    ShowWindow(mdButton, SW_SHOW);
+    UpdateWindow(mdButton);
+
+    ShowWindow(msButton, SW_SHOW);
+    UpdateWindow(msButton);
+
+    ShowWindow(qhButton, SW_SHOW);
+    UpdateWindow(qhButton);
+
+    ShowWindow(pchiButton, SW_SHOW);
+    UpdateWindow(pchiButton);
+
+    ShowWindow(gjkButton, SW_SHOW);
+    UpdateWindow(gjkButton);
+
+    ShowWindow(eButton, SW_SHOW);
+    UpdateWindow(eButton);
 
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
