@@ -11,11 +11,21 @@ using namespace std;
 #include "basewin.h"
 #include "resource.h"
 
+//button format macros
 #define BUTTONWIDTH 310
 #define BUTTONHEIGHT 100
 #define BUTTONXCOOR 20
 #define BUTTONYCOOR 20
 #define BUTTONPADDING 10
+
+//button control IDs
+#define MINKOWSKI_DIFFERENCE 100
+#define MINKOWSKI_SUM 101
+#define QUICK_HULL 102
+#define POINT_CONVEX_HULL_INTERSECTION 103
+#define GJK 104
+#define EXIT 105
+
 
 template <class T> void SafeRelease(T **ppT)
 {
@@ -429,7 +439,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        NULL,       // No menu.
+        (HMENU)MINKOWSKI_DIFFERENCE,       
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -442,7 +452,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        NULL,       // No menu.
+        (HMENU)MINKOWSKI_SUM,
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -455,7 +465,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        NULL,       // No menu.
+        (HMENU)QUICK_HULL,
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -469,7 +479,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        NULL,       // No menu.
+        (HMENU)POINT_CONVEX_HULL_INTERSECTION,
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -482,7 +492,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        NULL,       // No menu.
+        (HMENU)GJK,
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -495,7 +505,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        NULL,       // No menu.
+        (HMENU)EXIT,
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -604,7 +614,47 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 SetMode(DrawMode);
             }
             break;
+
         }
+
+    //Handle Button Inputs to change the state of the application or close the application
+    case BN_CLICKED:
+        if (LOWORD(wParam) == MINKOWSKI_DIFFERENCE)
+        {
+            OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
+            break;
+        }
+        if (LOWORD(wParam) == MINKOWSKI_SUM)
+        {
+            OutputDebugStringW(L"MINKOWSKI_SUM\n");
+            break;
+        }
+        if (LOWORD(wParam) == QUICK_HULL)
+        {
+            OutputDebugStringW(L"QUICK_HULL\n");
+            break;
+        }
+        if (LOWORD(wParam) == POINT_CONVEX_HULL_INTERSECTION)
+        {
+            OutputDebugStringW(L"POINT_CONVEX_HULL_INTERSECTION\n");
+            break;
+        }
+        if (LOWORD(wParam) == GJK)
+        {
+            OutputDebugStringW(L"GJK\n");
+            break;
+        }
+        if (LOWORD(wParam) == EXIT)
+        {
+           OutputDebugStringW(L"EXIT\n");
+           DiscardGraphicsResources();
+           SafeRelease(&pFactory);
+           PostQuitMessage(0);
+           return 0;
+        }
+        else
+            break;
+        
         return 0;
     }
     return DefWindowProc(m_hwnd, uMsg, wParam, lParam);
