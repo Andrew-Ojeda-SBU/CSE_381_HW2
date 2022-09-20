@@ -26,6 +26,13 @@ using namespace std;
 #define GJK 104
 #define EXIT 105
 
+//drawing format macros
+#define VERTEX_RADIUS 10.0
+#define MIN_VERTEX_X 300
+#define MAX_VERTEX_X 700
+#define MIN_VERTEX_Y 100
+#define MAX_VERTEX_Y 500
+
 
 template <class T> void SafeRelease(T **ppT)
 {
@@ -66,10 +73,17 @@ public:
 float DPIScale::scaleX = 1.0f;
 float DPIScale::scaleY = 1.0f;
 
+struct MyVertex
+{
+    D2D1_POINT_2F vertex;
+
+};
+
 struct MyEllipse
 {
-    D2D1_ELLIPSE    ellipse;
-    D2D1_COLOR_F    color;
+    D2D1_ELLIPSE          ellipse;
+    D2D1_COLOR_F          color;
+    shared_ptr<MyVertex>  vertex;
 
     void Draw(ID2D1RenderTarget *pRT, ID2D1SolidColorBrush *pBrush)
     {
@@ -88,7 +102,14 @@ struct MyEllipse
         const float d = ((x1 * x1) / (a * a)) + ((y1 * y1) / (b * b));
         return d <= 1.0f;
     }
+
+    shared_ptr<MyVertex> GetVertexPointer()
+    {
+        return vertex;
+    }
 };
+
+
 
 D2D1::ColorF::Enum colors[] = { D2D1::ColorF::Yellow, D2D1::ColorF::Salmon, D2D1::ColorF::LimeGreen };
 
@@ -102,6 +123,16 @@ class MainWindow : public BaseWindow<MainWindow>
         DragMode
     };
 
+    //enum class to keep track of which algorithm is being demonstrated
+    enum class AlgoMode
+    {
+        MinkowskiDifference,
+        MinkowskiSum,
+        QuickHull,
+        PointConvexHullIntersection,
+        gjk
+    };
+
     HCURSOR                 hCursor;
 
     ID2D1Factory            *pFactory;
@@ -110,25 +141,42 @@ class MainWindow : public BaseWindow<MainWindow>
     D2D1_POINT_2F           ptMouse;
 
     Mode                    mode;
+    AlgoMode                algoMode;
     size_t                  nextColor;
 
     list<shared_ptr<MyEllipse>>             ellipses;
+    list<shared_ptr<MyEllipse>>             ellipses2;
+    list<shared_ptr<MyVertex>>             convexHull;
+    list<shared_ptr<MyVertex>>             convexHull2;
+
     list<shared_ptr<MyEllipse>>::iterator   selection;
+
+    BOOL selection1;
+
+
+    //vertices of the convex hulls
+    list<MyVertex> vertices1;
+    list<MyVertex> vertices2;
+
      
     shared_ptr<MyEllipse> Selection() 
     { 
-        if (selection == ellipses.end()) 
+
+        if(selection1 && selection == ellipses.end())
         { 
             return nullptr;
         }
-        else
+        if(!selection1 && selection == ellipses2.end())
         {
-            return (*selection);
+            return nullptr;
         }
+            return (*selection);
     }
 
     void    ClearSelection() { selection = ellipses.end(); }
     HRESULT InsertEllipse(float x, float y);
+    std::shared_ptr<MyEllipse> GenerateRandomEllipse(D2D1::ColorF color);
+    void generateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
 
     BOOL    HitTest(float x, float y);
     void    SetMode(Mode m);
@@ -195,7 +243,13 @@ void MainWindow::OnPaint()
 
         pRenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::SkyBlue) );
 
+
         for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
+        {
+            (*i)->Draw(pRenderTarget, pBrush);
+        }
+
+        for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
         {
             (*i)->Draw(pRenderTarget, pBrush);
         }
@@ -235,20 +289,20 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
     const float dipX = DPIScale::PixelsToDipsX(pixelX);
     const float dipY = DPIScale::PixelsToDipsY(pixelY);
 
-    if (mode == DrawMode)
-    {
-        POINT pt = { pixelX, pixelY };
+    //if (mode == DrawMode)
+    //{
+    //    POINT pt = { pixelX, pixelY };
 
-        if (DragDetect(m_hwnd, pt))
-        {
-            SetCapture(m_hwnd);
-        
-            // Start a new ellipse.
-            InsertEllipse(dipX, dipY);
-        }
-    }
-    else
-    {
+    //    if (DragDetect(m_hwnd, pt))
+    //    {
+    //        SetCapture(m_hwnd);
+    //    
+    //        // Start a new ellipse.
+    //        InsertEllipse(dipX, dipY);
+    //    }
+    //}
+    //else
+    //{
         ClearSelection();
 
         if (HitTest(dipX, dipY))
@@ -258,10 +312,12 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
             ptMouse = Selection()->ellipse.point;
             ptMouse.x -= dipX;
             ptMouse.y -= dipY;
+            Selection()->vertex->vertex.x -= dipX;
+            Selection()->vertex->vertex.x -= dipY;
 
             SetMode(DragMode);
         }
-    }
+    //}
     InvalidateRect(m_hwnd, NULL, FALSE);
 }
 
@@ -362,14 +418,49 @@ HRESULT MainWindow::InsertEllipse(float x, float y)
     return S_OK;
 }
 
+std::shared_ptr<MyEllipse> MainWindow::GenerateRandomEllipse(D2D1::ColorF color)
+{
+   
+    std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
+    newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(rand() % MAX_VERTEX_X + MIN_VERTEX_Y, rand() % MAX_VERTEX_X + MIN_VERTEX_Y), VERTEX_RADIUS, VERTEX_RADIUS);
+    newEllipse->color = (color);
+    newEllipse->vertex = std::make_shared<MyVertex>();
+    newEllipse->vertex->vertex = newEllipse->ellipse.point;
+
+    return newEllipse;
+}
+
+void MainWindow::generateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
+{
+    for (size_t i = 0; i < num1; i++)
+    {
+        ellipses.emplace_back(GenerateRandomEllipse(color1));
+    }
+    for (size_t i = 0; i < num2; i++)
+    {
+        ellipses2.emplace_back(GenerateRandomEllipse(color2));
+    }
+}
+
 
 BOOL MainWindow::HitTest(float x, float y)
 {
+ 
     for (auto i = ellipses.rbegin(); i != ellipses.rend(); ++i)
     {
         if ((*i)->HitTest(x, y))
         {
             selection = (++i).base();
+            selection1 = true;
+            return TRUE;
+        }
+    }
+    for (auto j = ellipses2.rbegin(); j != ellipses2.rend(); ++j)
+    {
+        if ((*j)->HitTest(x, y))
+        {
+            selection = (++j).base();
+            selection1 = false;
             return TRUE;
         }
     }
@@ -552,7 +643,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             return -1;  // Fail CreateWindowEx.
         }
         DPIScale::Initialize(pFactory);
-        SetMode(DrawMode);
+        SetMode(DragMode);
         return 0;
 
     case WM_DESTROY:
@@ -622,26 +713,33 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == MINKOWSKI_DIFFERENCE)
         {
             OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
+            algoMode = AlgoMode::MinkowskiDifference;
             break;
         }
         if (LOWORD(wParam) == MINKOWSKI_SUM)
         {
             OutputDebugStringW(L"MINKOWSKI_SUM\n");
+            algoMode = AlgoMode::MinkowskiSum;
             break;
         }
         if (LOWORD(wParam) == QUICK_HULL)
         {
             OutputDebugStringW(L"QUICK_HULL\n");
+            algoMode = AlgoMode::QuickHull;
             break;
         }
         if (LOWORD(wParam) == POINT_CONVEX_HULL_INTERSECTION)
         {
             OutputDebugStringW(L"POINT_CONVEX_HULL_INTERSECTION\n");
+            algoMode = AlgoMode::PointConvexHullIntersection;
+            generateRandomSetOfPoints(1,10, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            OnPaint();
             break;
         }
         if (LOWORD(wParam) == GJK)
         {
             OutputDebugStringW(L"GJK\n");
+            algoMode = AlgoMode::gjk;
             break;
         }
         if (LOWORD(wParam) == EXIT)
