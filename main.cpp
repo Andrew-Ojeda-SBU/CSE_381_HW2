@@ -10,6 +10,7 @@ using namespace std;
 
 #include "basewin.h"
 #include "resource.h"
+#include <functional>
 
 //button format macros
 #define BUTTONWIDTH 310
@@ -103,10 +104,10 @@ struct MyEllipse
         return d <= 1.0f;
     }
 
-    shared_ptr<MyVertex> GetVertexPointer()
-    {
-        return vertex;
-    }
+    //shared_ptr<MyVertex> GetVertexPointer()
+    //{
+    //    return vertex;
+    //}
 };
 
 
@@ -146,8 +147,9 @@ class MainWindow : public BaseWindow<MainWindow>
 
     list<shared_ptr<MyEllipse>>             ellipses;
     list<shared_ptr<MyEllipse>>             ellipses2;
-    list<shared_ptr<MyVertex>>             convexHull;
-    list<shared_ptr<MyVertex>>             convexHull2;
+    list<shared_ptr<MyVertex>>              convexHull;
+    list<shared_ptr<MyVertex>>              convexHull2;
+    list<shared_ptr<MyVertex>>              convexHull3;
 
     list<shared_ptr<MyEllipse>>::iterator   selection;
 
@@ -176,7 +178,8 @@ class MainWindow : public BaseWindow<MainWindow>
     void    ClearSelection() { selection = ellipses.end(); }
     HRESULT InsertEllipse(float x, float y);
     std::shared_ptr<MyEllipse> GenerateRandomEllipse(D2D1::ColorF color);
-    void generateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
+    void GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
+    
 
     BOOL    HitTest(float x, float y);
     void    SetMode(Mode m);
@@ -190,6 +193,10 @@ class MainWindow : public BaseWindow<MainWindow>
     void    OnMouseMove(int pixelX, int pixelY, DWORD flags);
     void    OnKeyDown(UINT vkey);
 
+    void ClearLists();
+    void AlgoTest();
+    void QuickHull(const list<shared_ptr<MyEllipse>>& points, list<shared_ptr<MyVertex>>& convexHull);
+    
 public:
 
     MainWindow() : pFactory(NULL), pRenderTarget(NULL), pBrush(NULL), 
@@ -254,11 +261,29 @@ void MainWindow::OnPaint()
             (*i)->Draw(pRenderTarget, pBrush);
         }
 
+        for (auto i = convexHull.begin(), prev = convexHull.end();
+            i != convexHull.end(); prev = i, ++i)
+        {
+            if(prev != convexHull.end())
+                pRenderTarget->DrawLine((*i)->vertex, (*prev)->vertex, pBrush);
+        }
+        if(!convexHull.empty())
+            pRenderTarget->DrawLine(convexHull.front()->vertex, convexHull.back()->vertex, pBrush);
+        for (auto i = convexHull2.begin(), prev = convexHull2.end();
+            i != convexHull2.end(); prev = i, ++i)
+        {
+            if (prev != convexHull2.end())
+                pRenderTarget->DrawLine((*i)->vertex, (*prev)->vertex, pBrush);
+        }
+        if (!convexHull2.empty())
+            pRenderTarget->DrawLine(convexHull2.front()->vertex, convexHull2.back()->vertex, pBrush);
+
         if (Selection())
         {
             pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::Red));
             pRenderTarget->DrawEllipse(Selection()->ellipse, pBrush, 2.0f);
         }
+
 
         hr = pRenderTarget->EndDraw();
         if (FAILED(hr) || hr == D2DERR_RECREATE_TARGET)
@@ -417,7 +442,19 @@ HRESULT MainWindow::InsertEllipse(float x, float y)
     }
     return S_OK;
 }
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:   MainWindow::GenerateRandomEllipse
 
+  Summary:  randomly generates a point in the window
+
+  Args:     D2D1::ColorF color
+                color of point
+
+  Modifies: [].
+
+  Returns:  shared_ptr<MyEllipse>
+              smart pointer to a new point
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 std::shared_ptr<MyEllipse> MainWindow::GenerateRandomEllipse(D2D1::ColorF color)
 {
    
@@ -429,8 +466,26 @@ std::shared_ptr<MyEllipse> MainWindow::GenerateRandomEllipse(D2D1::ColorF color)
 
     return newEllipse;
 }
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:   MainWindow::GenerateRandomSetOfPoints
 
-void MainWindow::generateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
+  Summary:  creates two lists of points that are randomly generated
+
+  Args:     size_t num1
+              size of ellipses
+            size_t num2
+              size of ellipses2
+            size_t color1
+              color of points in ellipses
+            size_t color2
+              color of points in ellipses2
+
+  Modifies: [ellipses, ellipses2].
+
+  Returns:  VOID
+              No return type
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
 {
     for (size_t i = 0; i < num1; i++)
     {
@@ -441,6 +496,216 @@ void MainWindow::generateRandomSetOfPoints(size_t num1, size_t num2, D2D1::Color
         ellipses2.emplace_back(GenerateRandomEllipse(color2));
     }
 }
+
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:    MainWindow::ClearLists()
+
+  Summary:  Clears the list of points and vertices
+
+  Args:     NONE
+
+  Modifies: [ellipses, ellipses2, convexHull, convexHull2, convexHull3].
+
+  Returns:  VOID
+              No return type
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::ClearLists()
+{
+    ellipses.clear();
+    ellipses2.clear();
+    convexHull.clear();
+    convexHull2.clear();
+    convexHull3.clear();
+}
+
+void MainWindow::AlgoTest()
+{
+    switch (algoMode)
+    {
+        case AlgoMode::MinkowskiSum:
+            break;
+        case AlgoMode::MinkowskiDifference:
+            break;
+        case AlgoMode::QuickHull:
+            QuickHull(ellipses, convexHull);
+            break;
+        case AlgoMode::PointConvexHullIntersection:
+            QuickHull(ellipses2, convexHull2);
+            break;
+        case AlgoMode::gjk:
+            break;
+    }
+}
+
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:    MainWindow::QuickHull
+
+  Summary:  Recursive QuickHull as demonstrated in pseudo code found in
+            Computation Geometry in C by Joseph O'Rourke.  First search
+            list of points and find the left and right most points. Then split
+            the points into two sets of the points all above and all below the
+            line formed by the left and right most points.  Call a recursive method
+            which finds the point the is farthest vertically from the line between
+            the left and right most points. Make two more recursive calls with the 
+            left and farthest point and the set of points to the left of their line, 
+            and with the farthest and right points and the set of points to the 
+            left of their line.
+
+  Args:     const list<shared_ptr<MyEllipse>>& points
+              List of points that the convex hull will form around
+            list<shared_ptr<MyVertex>>& convexHull
+              List of vertices that make up the convex hull
+
+  Modifies: [convexHull1,convextHull2,convexHull3].
+
+  Returns:  void
+                doesn't return a type, modifies one of the three lists of vertices representing a convex hull
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, list<shared_ptr<MyVertex>>& convexHull)
+{
+    shared_ptr<MyVertex>        left;
+    shared_ptr<MyVertex>        right;
+    /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Function: IsLeft
+
+        Summary:  Takes cross product of points a,b,c to determine
+                  if c is to the left of the line formed by a and b. 
+
+        Args:     shared_ptr<MyVertex> a
+                        left most point
+                  shared_ptr<MyVertex> b
+                        right most point
+                  shared_ptr<MyVertex> c
+                        point being checked
+
+        Returns:  BOOL
+                        true if c is to the left of the line formed by 
+                        a and b
+     -----------------------------------------------------------------F-F*/
+    function<BOOL(shared_ptr<MyVertex>, shared_ptr<MyVertex>, shared_ptr<MyVertex>)> IsLeft = [](shared_ptr<MyVertex> a, shared_ptr<MyVertex> b, shared_ptr<MyVertex> c)->BOOL
+    {
+        return ((b->vertex.x - a->vertex.x) * (c->vertex.y - a->vertex.y) - (b->vertex.y - a->vertex.y) * (c->vertex.x - a->vertex.x)) > 0;
+    };
+    /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Function: LineDistance
+
+        Summary:  Takes cross product of points a,b,c to determine
+                  verticle distance of c is to the left of the line formed by 
+                  a and b.
+
+        Args:     shared_ptr<MyVertex> a
+                        left most point
+                  shared_ptr<MyVertex> b
+                        right most point
+                  shared_ptr<MyVertex> c
+                        point being checked
+
+        Returns:  int
+                        absolute vaue of the verticle distanc of c
+                        from the line formed by a and b
+     -----------------------------------------------------------------F-F*/
+    function<int(shared_ptr<MyVertex>, shared_ptr<MyVertex>, shared_ptr<MyVertex>)> LineDistance = [](shared_ptr<MyVertex> a, shared_ptr<MyVertex> b, shared_ptr<MyVertex> c)->int
+    {
+        return abs((c->vertex.y - a->vertex.y) * (b->vertex.x - a->vertex.x) -
+            (b->vertex.y - a->vertex.y) * (c->vertex.x - a->vertex.x));
+    };
+    /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Function: IsLeftList
+
+        Summary:  Scans a list of points to see if they are left of 
+                  the line formed by a and b
+
+        Args:     shared_ptr<MyVertex> a
+                        left most point
+                  shared_ptr<MyVertex> b
+                        right most point
+                  const list<shared_ptr<MyEllipse>>& pointSet
+                        points being checked
+
+        Returns:  list<shared_ptr<MyEllipse>
+                        set of  points to the left of line a and b
+     -----------------------------------------------------------------F-F*/
+    function<list<shared_ptr<MyEllipse>>(shared_ptr<MyVertex>, shared_ptr<MyVertex>, const list<shared_ptr<MyEllipse>>&)> IsLeftList = [&](shared_ptr<MyVertex> left, shared_ptr<MyVertex> right, const list<shared_ptr<MyEllipse>>& pointSet)->list<shared_ptr<MyEllipse>>
+    {
+        list <shared_ptr<MyEllipse>> leftPointSet;
+        for (auto const& point : pointSet) 
+        {
+            if (IsLeft(left, right, point->vertex))
+            {
+                leftPointSet.push_back(point);
+            }
+        }
+        return leftPointSet;
+    };
+    /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        Function: FindHull
+
+        Summary:  Recursive method described in main function header.
+                  Finds one side of the convex hull
+
+        Args:     shared_ptr<MyVertex> left
+                        left most point
+                  shared_ptr<MyVertex> right
+                        right most point
+                  const list<shared_ptr<MyEllipse>>& pointSet
+                        points being checked
+
+        Returns:  void
+                        base case reached when pointSet is empty
+                        right point is added to convex hull
+     -----------------------------------------------------------------F-F*/
+    function<void(shared_ptr<MyVertex>, shared_ptr<MyVertex>, const list<shared_ptr<MyEllipse>>&)> FindHull = [&](shared_ptr<MyVertex> left, shared_ptr<MyVertex> right, const list<shared_ptr<MyEllipse>>& pointSet)->void
+    {
+        if (pointSet.empty())
+        {
+            convexHull.push_back(right);
+            return;
+        }
+
+        shared_ptr<MyVertex> top = pointSet.front()->vertex;
+        for (auto const& point : pointSet) 
+        {
+            if (LineDistance(left, right, point->vertex)>LineDistance(left, right, top))
+            {
+                top = point->vertex;
+            }
+        }
+        FindHull(left, top, IsLeftList(left, top, pointSet));
+        FindHull(top, right, IsLeftList(top, right, pointSet));
+
+    };
+    
+
+    left = points.front()->vertex;
+    right = points.front()->vertex;
+
+    shared_ptr<MyEllipse>leftPoint = points.front();
+    shared_ptr<MyEllipse>rightPoint = points.front();
+
+
+    for (auto const& point : points) {
+        if (point->ellipse.point.x < left->vertex.x)
+        {
+            leftPoint = point;
+            left = point->vertex;
+        }
+        if (point->ellipse.point.x > right->vertex.x)
+        {
+            rightPoint = point;
+            right = point->vertex;
+        }
+    }
+
+    leftPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
+    rightPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
+
+    FindHull(left, right, IsLeftList(left, right, points));
+    FindHull(right, left, IsLeftList(right, left, points));
+
+}
+
+
+
 
 
 BOOL MainWindow::HitTest(float x, float y)
@@ -713,38 +978,51 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == MINKOWSKI_DIFFERENCE)
         {
             OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
+            ClearLists();
             algoMode = AlgoMode::MinkowskiDifference;
+            OnPaint();
             break;
         }
         if (LOWORD(wParam) == MINKOWSKI_SUM)
         {
             OutputDebugStringW(L"MINKOWSKI_SUM\n");
+            ClearLists();
             algoMode = AlgoMode::MinkowskiSum;
+            OnPaint();
             break;
         }
         if (LOWORD(wParam) == QUICK_HULL)
         {
             OutputDebugStringW(L"QUICK_HULL\n");
+            ClearLists();
+            GenerateRandomSetOfPoints(10, 0, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
             algoMode = AlgoMode::QuickHull;
+            AlgoTest();
+            OnPaint();
             break;
         }
         if (LOWORD(wParam) == POINT_CONVEX_HULL_INTERSECTION)
         {
             OutputDebugStringW(L"POINT_CONVEX_HULL_INTERSECTION\n");
+            ClearLists();
             algoMode = AlgoMode::PointConvexHullIntersection;
-            generateRandomSetOfPoints(1,10, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            GenerateRandomSetOfPoints(1,10, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            AlgoTest();
             OnPaint();
             break;
         }
         if (LOWORD(wParam) == GJK)
         {
             OutputDebugStringW(L"GJK\n");
+            ClearLists();
             algoMode = AlgoMode::gjk;
+            OnPaint();
             break;
         }
         if (LOWORD(wParam) == EXIT)
         {
            OutputDebugStringW(L"EXIT\n");
+           ClearLists();
            DiscardGraphicsResources();
            SafeRelease(&pFactory);
            PostQuitMessage(0);
