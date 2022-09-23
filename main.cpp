@@ -152,6 +152,7 @@ class MainWindow : public BaseWindow<MainWindow>
     list<shared_ptr<MyVertex>>              convexHull3;
 
     list<shared_ptr<MyEllipse>>::iterator   selection;
+    list<shared_ptr<MyEllipse>>::iterator   selection2;
 
     BOOL selection1;
 
@@ -168,14 +169,14 @@ class MainWindow : public BaseWindow<MainWindow>
         { 
             return nullptr;
         }
-        if(!selection1 && selection == ellipses2.end())
+        if(!selection1 && selection2 == ellipses2.end())
         {
             return nullptr;
         }
-            return (*selection);
+        return selection1 ? (*selection) : (*selection2);
     }
 
-    void    ClearSelection() { selection = ellipses.end(); }
+    void    ClearSelection() { selection = ellipses.end(); selection2 = ellipses2.end(); }
     HRESULT InsertEllipse(float x, float y);
     std::shared_ptr<MyEllipse> GenerateRandomEllipse(D2D1::ColorF color);
     void GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
@@ -333,13 +334,16 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
         if (HitTest(dipX, dipY))
         {
             SetCapture(m_hwnd);
-
+            
+            convexHull.clear();
+            convexHull2.clear();
+            convexHull3.clear();
             ptMouse = Selection()->ellipse.point;
             ptMouse.x -= dipX;
             ptMouse.y -= dipY;
             Selection()->vertex->vertex.x -= dipX;
             Selection()->vertex->vertex.x -= dipY;
-
+            AlgoTest();
             SetMode(DragMode);
         }
     //}
@@ -724,7 +728,7 @@ BOOL MainWindow::HitTest(float x, float y)
     {
         if ((*j)->HitTest(x, y))
         {
-            selection = (++j).base();
+            selection2 = (++j).base();
             selection1 = false;
             return TRUE;
         }
@@ -978,6 +982,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == MINKOWSKI_DIFFERENCE)
         {
             OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
+            ClearSelection();
             ClearLists();
             algoMode = AlgoMode::MinkowskiDifference;
             OnPaint();
@@ -986,6 +991,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == MINKOWSKI_SUM)
         {
             OutputDebugStringW(L"MINKOWSKI_SUM\n");
+            ClearSelection();
             ClearLists();
             algoMode = AlgoMode::MinkowskiSum;
             OnPaint();
@@ -994,6 +1000,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == QUICK_HULL)
         {
             OutputDebugStringW(L"QUICK_HULL\n");
+            ClearSelection();
             ClearLists();
             GenerateRandomSetOfPoints(10, 0, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
             algoMode = AlgoMode::QuickHull;
@@ -1004,6 +1011,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == POINT_CONVEX_HULL_INTERSECTION)
         {
             OutputDebugStringW(L"POINT_CONVEX_HULL_INTERSECTION\n");
+            ClearSelection();
             ClearLists();
             algoMode = AlgoMode::PointConvexHullIntersection;
             GenerateRandomSetOfPoints(1,10, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
@@ -1014,6 +1022,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == GJK)
         {
             OutputDebugStringW(L"GJK\n");
+            ClearSelection();
             ClearLists();
             algoMode = AlgoMode::gjk;
             OnPaint();
@@ -1022,6 +1031,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == EXIT)
         {
            OutputDebugStringW(L"EXIT\n");
+           ClearSelection();
            ClearLists();
            DiscardGraphicsResources();
            SafeRelease(&pFactory);
