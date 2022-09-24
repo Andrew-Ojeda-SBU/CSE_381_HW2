@@ -151,7 +151,7 @@ class MainWindow : public BaseWindow<MainWindow>
     vector<D2D1_POINT_2F>                     prevPoints;
     vector<shared_ptr<D2D1_POINT_2F>>       convexHull;
     vector<shared_ptr<D2D1_POINT_2F>>       convexHull2;
-    vector<shared_ptr<D2D1_POINT_2F>>       convexHull3;
+    vector<shared_ptr<D2D1_POINT_2F>>       convexHull3;//used for MinkowskiSum, MinkowskiDiff, and GJK
 
     list<shared_ptr<MyEllipse>>::iterator   selection;
     list<shared_ptr<MyEllipse>>::iterator   selection2;
@@ -597,10 +597,12 @@ void MainWindow::AlgoTest()
         case AlgoMode::MinkowskiSum:
             QuickHull(ellipses, convexHull);
             QuickHull(ellipses2, convexHull2);
+            //TODO:MinkowskiSum
             break;
         case AlgoMode::MinkowskiDifference:
             QuickHull(ellipses, convexHull);
             QuickHull(ellipses2, convexHull2);
+            //TODO:MinkowskiDiff
             break;
         case AlgoMode::QuickHull:
             QuickHull(ellipses, convexHull);
@@ -615,6 +617,7 @@ void MainWindow::AlgoTest()
         case AlgoMode::gjk:
             QuickHull(ellipses, convexHull);
             QuickHull(ellipses2, convexHull2);
+            //TODO:GJK
             break;
     }
 }
@@ -660,10 +663,10 @@ BOOL MainWindow::IsRight(shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b,
             list<shared_ptr<D2D_POINT_2F>>& convexHull
               List of vertices that make up the convex hull
 
-  Modifies: [convexHull1,convexHull2,convexHull3].
+  Modifies: [convexHull1,convexHull2].
 
   Returns:  void
-                doesn't return a type, modifies one of the three lists of vertices representing a convex hull
+                doesn't return a type, modifies one of the two lists of vertices representing a convex hull
 M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<shared_ptr<D2D_POINT_2F>>& convexHull)
 {
