@@ -595,8 +595,12 @@ void MainWindow::AlgoTest()
     switch (algoMode)
     {
         case AlgoMode::MinkowskiSum:
+            QuickHull(ellipses, convexHull);
+            QuickHull(ellipses2, convexHull2);
             break;
         case AlgoMode::MinkowskiDifference:
+            QuickHull(ellipses, convexHull);
+            QuickHull(ellipses2, convexHull2);
             break;
         case AlgoMode::QuickHull:
             QuickHull(ellipses, convexHull);
@@ -609,6 +613,8 @@ void MainWindow::AlgoTest()
                 ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Green);
             break;
         case AlgoMode::gjk:
+            QuickHull(ellipses, convexHull);
+            QuickHull(ellipses2, convexHull2);
             break;
     }
 }
@@ -1099,6 +1105,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
             ClearSelection();
             ClearLists();
+            GenerateRandomSetOfPoints(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
             algoMode = AlgoMode::MinkowskiDifference;
             AlgoTest();
             OnPaint();
@@ -1109,6 +1116,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             OutputDebugStringW(L"MINKOWSKI_SUM\n");
             ClearSelection();
             ClearLists();
+            GenerateRandomSetOfPoints(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
             algoMode = AlgoMode::MinkowskiSum;
             AlgoTest();
             OnPaint();
@@ -1141,6 +1149,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             OutputDebugStringW(L"GJK\n");
             ClearSelection();
             ClearLists();
+            GenerateRandomSetOfPoints(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
             algoMode = AlgoMode::gjk;
             AlgoTest();
             OnPaint();
