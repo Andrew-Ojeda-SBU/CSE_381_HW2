@@ -270,6 +270,7 @@ void MainWindow::OnPaint()
         }
         if(!convexHull.empty())
             pRenderTarget->DrawLine(*convexHull.front(), *convexHull.back(), pBrush);
+
         for (auto i = convexHull2.begin(), prev = convexHull2.end();
             i != convexHull2.end(); prev = i, ++i)
         {
@@ -278,6 +279,15 @@ void MainWindow::OnPaint()
         }
         if (!convexHull2.empty())
             pRenderTarget->DrawLine(*convexHull2.front(), *convexHull2.back(), pBrush);
+
+        for (auto i = convexHull3.begin(), prev = convexHull3.end();
+            i != convexHull3.end(); prev = i, ++i)
+        {
+            if (prev != convexHull3.end())
+                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush);
+        }
+        if (!convexHull3.empty())
+            pRenderTarget->DrawLine(*convexHull3.front(), *convexHull3.back(), pBrush);
 
         if (Selection())
         {
