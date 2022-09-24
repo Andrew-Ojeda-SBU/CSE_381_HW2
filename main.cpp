@@ -4,6 +4,7 @@
 
 #include <list>
 #include <memory>
+#include <vector>
 using namespace std;
 
 #pragma comment(lib, "d2d1")
@@ -147,9 +148,9 @@ class MainWindow : public BaseWindow<MainWindow>
 
     list<shared_ptr<MyEllipse>>             ellipses;
     list<shared_ptr<MyEllipse>>             ellipses2;
-    list<shared_ptr<D2D1_POINT_2F>>         convexHull;
-    list<shared_ptr<D2D1_POINT_2F>>         convexHull2;
-    list<shared_ptr<D2D1_POINT_2F>>         convexHull3;
+    vector<shared_ptr<D2D1_POINT_2F>>         convexHull;
+    vector<shared_ptr<D2D1_POINT_2F>>         convexHull2;
+    vector<shared_ptr<D2D1_POINT_2F>>         convexHull3;
 
     list<shared_ptr<MyEllipse>>::iterator   selection;
     list<shared_ptr<MyEllipse>>::iterator   selection2;
@@ -191,7 +192,9 @@ class MainWindow : public BaseWindow<MainWindow>
 
     void ClearLists();
     void AlgoTest();
-    void QuickHull(const list<shared_ptr<MyEllipse>>& points, list<shared_ptr<D2D_POINT_2F>>& convexHull);
+    BOOL IsLeft(shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c);
+    void QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<shared_ptr<D2D_POINT_2F>>& convexHull);
+    BOOL PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<shared_ptr<D2D_POINT_2F>>& convexHull);
     
 public:
 
@@ -339,7 +342,7 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
             /*Selection()->vertex->x -= dipX;
             Selection()->vertex->x -= dipY;*/
             AlgoTest();
-            OnPaint();
+         /*   OnPaint();*/
             SetMode(DragMode);
         }
     //}
@@ -535,10 +538,36 @@ void MainWindow::AlgoTest()
             break;
         case AlgoMode::PointConvexHullIntersection:
             QuickHull(ellipses2, convexHull2);
+            if (PointInConvexHull(ellipses.front()->GetVertexPointer(), convexHull2))
+                ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Red);
+            else
+                ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Green);
             break;
         case AlgoMode::gjk:
             break;
     }
+}
+
+/*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+       Function: IsLeft
+
+       Summary:  Takes cross product of points a,b,c to determine
+                 if c is to the left of the line formed by a and b.
+
+       Args:     shared_ptr<D2D_POINT_2F> a
+                       left most point
+                 shared_ptr<D2D_POINT_2F> b
+                       right most point
+                 shared_ptr<D2D_POINT_2F> c
+                       point being checked
+
+       Returns:  BOOL
+                       true if c is to the left of the line formed by
+                       a and b
+    -----------------------------------------------------------------F-F*/
+BOOL MainWindow::IsLeft(shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c)
+{
+    return ((b->x - a->x) * (c->y - a->y) - (b->y - a->y) * (c->x - a->x)) > 0;
 }
 
 /*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
@@ -560,36 +589,16 @@ void MainWindow::AlgoTest()
             list<shared_ptr<D2D_POINT_2F>>& convexHull
               List of vertices that make up the convex hull
 
-  Modifies: [convexHull1,convextHull2,convexHull3].
+  Modifies: [convexHull1,convexHull2,convexHull3].
 
   Returns:  void
                 doesn't return a type, modifies one of the three lists of vertices representing a convex hull
 M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
-void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, list<shared_ptr<D2D_POINT_2F>>& convexHull)
+void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<shared_ptr<D2D_POINT_2F>>& convexHull)
 {
     shared_ptr<D2D_POINT_2F>        left;
     shared_ptr<D2D_POINT_2F>        right;
-    /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        Function: IsLeft
-
-        Summary:  Takes cross product of points a,b,c to determine
-                  if c is to the left of the line formed by a and b. 
-
-        Args:     shared_ptr<D2D_POINT_2F> a
-                        left most point
-                  shared_ptr<D2D_POINT_2F> b
-                        right most point
-                  shared_ptr<D2D_POINT_2F> c
-                        point being checked
-
-        Returns:  BOOL
-                        true if c is to the left of the line formed by 
-                        a and b
-     -----------------------------------------------------------------F-F*/
-    function<BOOL(shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>)> IsLeft = [](shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c)->BOOL
-    {
-        return ((b->x - a->x) * (c->y - a->y) - (b->y - a->y) * (c->x - a->x)) > 0;
-    };
+    
     /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         Function: LineDistance
 
@@ -662,7 +671,7 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, list<share
     {
         if (pointSet.empty())
         {
-            convexHull.push_back(right);
+            convexHull.push_back(left);
             return;
         }
 
@@ -683,8 +692,11 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, list<share
     left = points.front()->GetVertexPointer();
     right = points.front()->GetVertexPointer();
 
+    //testing purposes only
     shared_ptr<MyEllipse>leftPoint = points.front();
     shared_ptr<MyEllipse>rightPoint = points.front();
+    shared_ptr<MyEllipse>topPoint = points.front();
+    shared_ptr<MyEllipse>bottomPoint = points.front();
 
 
     for (auto const& point : points) {
@@ -698,14 +710,52 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, list<share
             rightPoint = point;
             right = point->GetVertexPointer();
         }
+        if (point->ellipse.point.y < bottomPoint->ellipse.point.y)
+        {
+            bottomPoint = point;
+        }
+        if (point->ellipse.point.y > topPoint->ellipse.point.y)
+        {
+            topPoint = point;
+        }
     }
 
     leftPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
-    rightPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
+    rightPoint->color = D2D1::ColorF(D2D1::ColorF::Blue);
+    topPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
+    bottomPoint->color = D2D1::ColorF(D2D1::ColorF::Blue);
+    
 
     FindHull(left, right, IsLeftList(left, right, points));
     FindHull(right, left, IsLeftList(right, left, points));
 
+    
+
+}
+
+BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<shared_ptr<D2D_POINT_2F>>& convexHull)
+{
+    if (IsLeft(convexHull[convexHull.size() - 1], convexHull[0], point))
+        return FALSE;
+
+    int left = 0;
+    int right = convexHull.size() - 1;
+    int i = (right + left)/2;
+
+   
+    
+    while (left <= right)
+    {
+        if(IsLeft(convexHull[i], convexHull[0], point) && !IsLeft(convexHull[i+1], convexHull[0], point))
+            return IsLeft(convexHull[i+1], convexHull[i], point);
+        if(IsLeft(convexHull[i], convexHull[0], point))
+            left = i+1;
+        else
+            right = i-1;
+        i = (right + left) / 2;
+    }
+
+    return FALSE;
 }
 
 
@@ -985,6 +1035,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             ClearSelection();
             ClearLists();
             algoMode = AlgoMode::MinkowskiDifference;
+            AlgoTest();
             OnPaint();
             break;
         }
@@ -994,6 +1045,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             ClearSelection();
             ClearLists();
             algoMode = AlgoMode::MinkowskiSum;
+            AlgoTest();
             OnPaint();
             break;
         }
@@ -1025,6 +1077,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             ClearSelection();
             ClearLists();
             algoMode = AlgoMode::gjk;
+            AlgoTest();
             OnPaint();
             break;
         }
