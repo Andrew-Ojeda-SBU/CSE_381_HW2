@@ -36,7 +36,7 @@ using namespace std;
 #define MAX_VERTEX_Y 300
 
 
-template <class T> void SafeRelease(T **ppT)
+template <class T> void SafeRelease(T** ppT)
 {
     if (*ppT)
     {
@@ -51,12 +51,12 @@ class DPIScale
     static float scaleY;
 
 public:
-    static void Initialize(ID2D1Factory *pFactory)
+    static void Initialize(ID2D1Factory* pFactory)
     {
         FLOAT dpiX, dpiY;
         pFactory->GetDesktopDpi(&dpiX, &dpiY);
-        scaleX = dpiX/96.0f;
-        scaleY = dpiY/96.0f;
+        scaleX = dpiX / 96.0f;
+        scaleY = dpiY / 96.0f;
     }
 
     template <typename T>
@@ -87,11 +87,11 @@ struct MyEllipse
     D2D1_COLOR_F          color;
     /*shared_ptr<D2D_POINT_2F>  vertex;*/
 
-    void Draw(ID2D1RenderTarget *pRT, ID2D1SolidColorBrush *pBrush)
+    void Draw(ID2D1RenderTarget* pRT, ID2D1SolidColorBrush* pBrush)
     {
         pBrush->SetColor(color);
         pRT->FillEllipse(ellipse, pBrush);
-        pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::Black));
+        pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::FloralWhite));
         pRT->DrawEllipse(ellipse, pBrush, 1.0f);
     }
 
@@ -137,9 +137,9 @@ class MainWindow : public BaseWindow<MainWindow>
 
     HCURSOR                 hCursor;
 
-    ID2D1Factory            *pFactory;
-    ID2D1HwndRenderTarget   *pRenderTarget;
-    ID2D1SolidColorBrush    *pBrush;
+    ID2D1Factory* pFactory;
+    ID2D1HwndRenderTarget* pRenderTarget;
+    ID2D1SolidColorBrush* pBrush;
     D2D1_POINT_2F           ptMouse;
 
     Mode                    mode;
@@ -148,26 +148,29 @@ class MainWindow : public BaseWindow<MainWindow>
 
     list<shared_ptr<MyEllipse>>             ellipses;
     list<shared_ptr<MyEllipse>>             ellipses2;
-    vector<D2D1_POINT_2F>                     prevPoints;
+    list<shared_ptr<MyEllipse>>             ellipses3;
+    vector<D2D1_POINT_2F>                   prevPoints;
     vector<shared_ptr<D2D1_POINT_2F>>       convexHull;
     vector<shared_ptr<D2D1_POINT_2F>>       convexHull2;
     vector<shared_ptr<D2D1_POINT_2F>>       convexHull3;//used for MinkowskiSum, MinkowskiDiff, and GJK
+    shared_ptr<MyEllipse>                   graphOrigin; //used for MinkowskiSum, MinkowskiDiff, and GJK
 
     list<shared_ptr<MyEllipse>>::iterator   selection;
     list<shared_ptr<MyEllipse>>::iterator   selection2;
 
     BOOL selection1;
+    BOOL noSelection;
     BOOL convexHullDrag = FALSE;
 
-     
-    shared_ptr<MyEllipse> Selection() 
-    { 
 
-        if(selection1 && selection == ellipses.end())
-        { 
+    shared_ptr<MyEllipse> Selection()
+    {
+
+        if (selection1 && selection == ellipses.end())
+        {
             return nullptr;
         }
-        if(!selection1 && selection2 == ellipses2.end())
+        if (!selection1 && selection2 == ellipses2.end())
         {
             return nullptr;
         }
@@ -178,7 +181,9 @@ class MainWindow : public BaseWindow<MainWindow>
     HRESULT InsertEllipse(float x, float y);
     std::shared_ptr<MyEllipse> GenerateRandomEllipse(D2D1::ColorF color, int maxX, int maxY, int minX, int minY);
     void GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
-    
+    void GenerateRandomSetOfPointsOnGrid(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
+    void GenerateOrigin();
+
 
     BOOL    HitTest(float x, float y);
     void    SetMode(Mode m);
@@ -197,10 +202,12 @@ class MainWindow : public BaseWindow<MainWindow>
     BOOL IsRight(shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c);
     void QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<shared_ptr<D2D_POINT_2F>>& convexHull);
     BOOL PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<shared_ptr<D2D_POINT_2F>>& convexHull);
-    
+    void MinkowskiSum(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points);
+    void MinkowskiDiff(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points);
+
 public:
 
-    MainWindow() : pFactory(NULL), pRenderTarget(NULL), pBrush(NULL), 
+    MainWindow() : pFactory(NULL), pRenderTarget(NULL), pBrush(NULL),
         ptMouse(D2D1::Point2F()), nextColor(0), selection(ellipses.end())
     {
     }
@@ -246,55 +253,113 @@ void MainWindow::OnPaint()
     {
         PAINTSTRUCT ps;
         BeginPaint(m_hwnd, &ps);
-     
+
         pRenderTarget->BeginDraw();
 
-        pRenderTarget->Clear( D2D1::ColorF(D2D1::ColorF::SkyBlue) );
+        pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
 
+        if (algoMode == AlgoMode::MinkowskiSum || algoMode == AlgoMode::MinkowskiDifference || algoMode == AlgoMode::gjk)
+        {
+            RECT rc;
+            GetClientRect(m_hwnd, &rc);
+            pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::DimGray));
+            float top = (float)rc.top;
+            float bottom = (float)rc.bottom;
+            float left = (float)rc.left;
+            float right = (float)rc.right;
+            // For the algorithms that are displayed with the coordinate grid, draw the grid
+            // First, draw the thicher lines for the x and y axis
+            pRenderTarget->DrawLine(D2D1::Point2F(graphOrigin->ellipse.point.x, top), D2D1::Point2F(graphOrigin->ellipse.point.x, bottom), pBrush, 3.5f);
+            pRenderTarget->DrawLine(D2D1::Point2F(left, graphOrigin->ellipse.point.y), D2D1::Point2F(right, graphOrigin->ellipse.point.y), pBrush, 3.5f);
+            // Now, draw the rest of the grid lines on screen
+            // Vertical
+            for (float i = graphOrigin->ellipse.point.x + 20; i < right; i = i + 20)
+            {
+                pRenderTarget->DrawLine(D2D1::Point2F(i, top), D2D1::Point2F(i, bottom), pBrush, 0.5f);
+            }
+            for (float i = graphOrigin->ellipse.point.x - 20; i > left; i = i - 20)
+            {
+                pRenderTarget->DrawLine(D2D1::Point2F(i, top), D2D1::Point2F(i, bottom), pBrush, 0.5f);
+            }
+            // Horizontal
+            for (float i = graphOrigin->ellipse.point.y + 20; i < bottom; i = i + 20)
+            {
+                pRenderTarget->DrawLine(D2D1::Point2F(left, i), D2D1::Point2F(right, i), pBrush, 0.5f);
+            }
+            for (float i = graphOrigin->ellipse.point.y - 20; i > top; i = i - 20)
+            {
+                pRenderTarget->DrawLine(D2D1::Point2F(left, i), D2D1::Point2F(right, i), pBrush, 0.5f);
+            }
+
+
+
+            pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::FloralWhite));
+        }
 
         for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
         {
             (*i)->Draw(pRenderTarget, pBrush);
         }
 
-        for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
+        if (algoMode != AlgoMode::PointConvexHullIntersection)
         {
-            (*i)->Draw(pRenderTarget, pBrush);
+            for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
+            {
+                (*i)->Draw(pRenderTarget, pBrush);
+            }
         }
 
+        // Draw hulls 1 and 2 in red and blue in gjk, like on the website
+        if (algoMode == AlgoMode::gjk)
+        {
+            pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::Red));
+        }
         for (auto i = convexHull.begin(), prev = convexHull.end();
             i != convexHull.end(); prev = i, ++i)
         {
-            if(prev != convexHull.end())
-                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush);
+            if (prev != convexHull.end())
+                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush, 1.5f);
         }
-        if(!convexHull.empty())
-            pRenderTarget->DrawLine(*convexHull.front(), *convexHull.back(), pBrush);
+        if (!convexHull.empty())
+            pRenderTarget->DrawLine(*convexHull.front(), *convexHull.back(), pBrush, 1.5f);
 
+
+        if (algoMode == AlgoMode::gjk)
+        {
+            pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::Blue));
+        }
         for (auto i = convexHull2.begin(), prev = convexHull2.end();
             i != convexHull2.end(); prev = i, ++i)
         {
             if (prev != convexHull2.end())
-                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush);
+                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush, 1.5f);
         }
         if (!convexHull2.empty())
-            pRenderTarget->DrawLine(*convexHull2.front(), *convexHull2.back(), pBrush);
+            pRenderTarget->DrawLine(*convexHull2.front(), *convexHull2.back(), pBrush, 1.5f);
 
+        // Set the lines of convexHull3 to be pink like on the website
+        pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::Magenta));
+        // If the hulls are colliding in gjk, make convexHull3 green
+        if (algoMode == AlgoMode::gjk)
+        {
+            if (PointInConvexHull(graphOrigin->GetVertexPointer(), convexHull3))
+                pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::LawnGreen));
+        }
         for (auto i = convexHull3.begin(), prev = convexHull3.end();
             i != convexHull3.end(); prev = i, ++i)
         {
             if (prev != convexHull3.end())
-                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush);
+                pRenderTarget->DrawLine(*(*i), *(*prev), pBrush, 1.5f);
         }
         if (!convexHull3.empty())
-            pRenderTarget->DrawLine(*convexHull3.front(), *convexHull3.back(), pBrush);
+            pRenderTarget->DrawLine(*convexHull3.front(), *convexHull3.back(), pBrush, 1.5f);
+        pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::FloralWhite));
 
         if (Selection())
         {
             pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::Red));
             pRenderTarget->DrawEllipse(Selection()->ellipse, pBrush, 2.0f);
         }
-
 
         hr = pRenderTarget->EndDraw();
         if (FAILED(hr) || hr == D2DERR_RECREATE_TARGET)
@@ -317,6 +382,7 @@ void MainWindow::Resize()
         pRenderTarget->Resize(size);
 
         InvalidateRect(m_hwnd, NULL, FALSE);
+
     }
 }
 
@@ -343,55 +409,76 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
     //}
     //else
     //{
-        ClearSelection();
+    ClearSelection();
 
-        if (HitTest(dipX, dipY))
-        {
-            SetCapture(m_hwnd);
-            
-            convexHull.clear();
-            convexHull2.clear();
-            convexHull3.clear();
-            ptMouse = Selection()->ellipse.point;
-            ptMouse.x -= dipX;
-            ptMouse.y -= dipY;
-            /*Selection()->vertex->x -= dipX;
-            Selection()->vertex->x -= dipY;*/
-            AlgoTest();
-         /*   OnPaint();*/
-            convexHullDrag = FALSE;
-            SetMode(DragMode);
-        }
-        else
-        if (convexHull.size() >3 && PointInConvexHull(make_shared<D2D1_POINT_2F>(mousePoint), convexHull))
+    if (HitTest(dipX, dipY))
+    {
+        SetCapture(m_hwnd);
+
+        convexHull.clear();
+        convexHull2.clear();
+        convexHull3.clear();
+        ptMouse = Selection()->ellipse.point;
+        ptMouse.x -= dipX;
+        ptMouse.y -= dipY;
+        /*Selection()->vertex->x -= dipX;
+        Selection()->vertex->x -= dipY;*/
+        AlgoTest();
+        /*   OnPaint();*/
+        convexHullDrag = FALSE;
+        SetMode(DragMode);
+    }
+    else
+        if (convexHull.size() > 3 && PointInConvexHull(make_shared<D2D1_POINT_2F>(mousePoint), convexHull))
         {
             OutputDebugStringW(L"convexhull 1 drag\n");
             prevPoints.clear();
             for (auto point : ellipses)
             {
-                point->ellipse.point.x -= dipX;
-                point->ellipse.point.y -= dipY;
-                prevPoints.emplace_back(point->ellipse.point);
+                prevPoints.emplace_back(D2D1::Point2F(point->ellipse.point.x - dipX, point->ellipse.point.y - dipY));
             }
             selection1 = TRUE;
             convexHullDrag = TRUE;
+            noSelection = FALSE;
             SetMode(DragMode);
         }
         else
-        if (convexHull2.size() > 3 && PointInConvexHull(make_shared<D2D1_POINT_2F>(mousePoint), convexHull2))
-        {
-            OutputDebugStringW(L"convexhull 2 drag\n");
-            prevPoints.clear();
-            for (auto const& point : ellipses2)
+            if (convexHull2.size() > 3 && PointInConvexHull(make_shared<D2D1_POINT_2F>(mousePoint), convexHull2))
             {
-                point->ellipse.point.x -= dipX;
-                point->ellipse.point.y -= dipY;
-                prevPoints.emplace_back(point->ellipse.point);
+                OutputDebugStringW(L"convexhull 2 drag\n");
+                prevPoints.clear();
+                for (auto const& point : ellipses2)
+                {
+                    prevPoints.emplace_back(D2D1::Point2F(point->ellipse.point.x - dipX, point->ellipse.point.y - dipY));
+                }
+                selection1 = FALSE;
+                convexHullDrag = TRUE;
+                noSelection = FALSE;
+                SetMode(DragMode);
             }
-            selection1 = FALSE;
-            convexHullDrag = TRUE;
-            SetMode(DragMode);
-        }
+            else
+                if (algoMode == AlgoMode::MinkowskiSum || algoMode == AlgoMode::MinkowskiDifference || algoMode == AlgoMode::gjk)
+                {
+                    if (!PointInConvexHull(make_shared<D2D1_POINT_2F>(mousePoint), convexHull) && !PointInConvexHull(make_shared<D2D1_POINT_2F>(mousePoint), convexHull2))
+                    {
+                        prevPoints.clear();
+                        for (auto const& point : ellipses2)
+                        {
+                            prevPoints.emplace_back(D2D1::Point2F(point->ellipse.point.x - dipX, point->ellipse.point.y - dipY));
+                        }
+                        for (auto const& point : ellipses)
+                        {
+                            prevPoints.emplace_back(D2D1::Point2F(point->ellipse.point.x - dipX, point->ellipse.point.y - dipY));
+                        }
+                        prevPoints.emplace_back(D2D1::Point2F(graphOrigin->ellipse.point.x - dipX, graphOrigin->ellipse.point.y - dipY));
+
+                        selection1 = TRUE;
+                        convexHullDrag = TRUE;
+                        noSelection = TRUE;
+                        SetMode(DragMode);
+                    }
+                }
+
     //}
     InvalidateRect(m_hwnd, NULL, FALSE);
 }
@@ -407,7 +494,7 @@ void MainWindow::OnLButtonUp()
     {
         SetMode(SelectMode);
     }
-    ReleaseCapture(); 
+    ReleaseCapture();
 }
 
 
@@ -417,7 +504,7 @@ void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
     const float dipY = DPIScale::PixelsToDipsY(pixelY);
 
     if ((flags & MK_LBUTTON) && (Selection() || convexHullDrag))
-    { 
+    {
         if (mode == DrawMode)
         {
             // Resize the ellipse.
@@ -433,11 +520,12 @@ void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
             convexHull3.clear();
             convexHull.clear();
             convexHull2.clear();
-            
+            ellipses3.clear();
+
             if (convexHullDrag)
             {
                 size_t count = 0;
-                
+
                 if (selection1)
                 {
                     for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
@@ -455,6 +543,24 @@ void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
                         (*i)->ellipse.point.y = dipY + prevPoints[count].y;
                         count++;
                     }
+                }
+                if (noSelection)
+                {
+                    for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
+                    {
+                        (*i)->ellipse.point.x = dipX + prevPoints[count].x;
+                        (*i)->ellipse.point.y = dipY + prevPoints[count].y;
+                        count++;
+                    }
+                    count = 0;
+                    for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
+                    {
+                        (*i)->ellipse.point.x = dipX + prevPoints[count].x;
+                        (*i)->ellipse.point.y = dipY + prevPoints[count].y;
+                        count++;
+                    }
+                    graphOrigin->ellipse.point.x = dipX + prevPoints[prevPoints.size() - 1].x;
+                    graphOrigin->ellipse.point.y = dipY + prevPoints[prevPoints.size() - 1].y;
                 }
             }
             else
@@ -509,12 +615,12 @@ HRESULT MainWindow::InsertEllipse(float x, float y)
     try
     {
         selection = ellipses.insert(
-            ellipses.end(), 
+            ellipses.end(),
             shared_ptr<MyEllipse>(new MyEllipse()));
 
         Selection()->ellipse.point = ptMouse = D2D1::Point2F(x, y);
-        Selection()->ellipse.radiusX = Selection()->ellipse.radiusY = 2.0f; 
-        Selection()->color = D2D1::ColorF( colors[nextColor] );
+        Selection()->ellipse.radiusX = Selection()->ellipse.radiusY = 2.0f;
+        Selection()->color = D2D1::ColorF(colors[nextColor]);
 
         nextColor = (nextColor + 1) % ARRAYSIZE(colors);
     }
@@ -539,12 +645,13 @@ HRESULT MainWindow::InsertEllipse(float x, float y)
 M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 std::shared_ptr<MyEllipse> MainWindow::GenerateRandomEllipse(D2D1::ColorF color, int maxX, int maxY, int minX, int minY)
 {
-   
+    maxX = maxX - minX;
+    maxY = maxY - minY;
     std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
-    newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(rand() % maxX + minX, rand() % maxY + minY), VERTEX_RADIUS, VERTEX_RADIUS);
+    newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F((float)(rand() % maxX + minX), (float)(rand() % maxY + minY)), VERTEX_RADIUS, VERTEX_RADIUS);
     newEllipse->color = (color);
-   /* newEllipse->vertex = std::make_shared<D2D_POINT_2F>();
-    newEllipse->vertex->vertex = newEllipse->ellipse.point;*/
+    /* newEllipse->vertex = std::make_shared<D2D_POINT_2F>();
+     newEllipse->vertex->vertex = newEllipse->ellipse.point;*/
 
     return newEllipse;
 }
@@ -569,14 +676,76 @@ std::shared_ptr<MyEllipse> MainWindow::GenerateRandomEllipse(D2D1::ColorF color,
 M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 void MainWindow::GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
 {
+    RECT rc;
+    GetClientRect(m_hwnd, &rc);
+    int middleX = rc.right / 2;
+    int middleY = rc.bottom / 2;
     for (size_t i = 0; i < num1; i++)
     {
-        ellipses.emplace_back(GenerateRandomEllipse(color1,350,350,200,100));
+        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.8), (int)(middleY * 1.8), (int)((middleX * .5) > (350) ? (middleX * .5) : (350)), (int)(middleY * .2)));
     }
     for (size_t i = 0; i < num2; i++)
     {
-        ellipses2.emplace_back(GenerateRandomEllipse(color2,500,350,400,100));
+        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.6), (int)(middleY * 1.3), (int)((middleX * .6) > (350) ? (middleX * .6) : (350)), (int)(middleY * .5)));
     }
+}
+
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:   MainWindow::GenerateRandomSetOfPointsOnGrid
+
+  Summary:  same as GenerateRandomSetOfPoints, except the points appear in the appropriate positions on the grid for the minkowski algorithms and gjk
+
+  Args:     size_t num1
+              size of ellipses
+            size_t num2
+              size of ellipses2
+            size_t color1
+              color of points in ellipses
+            size_t color2
+              color of points in ellipses2
+
+  Modifies: [ellipses, ellipses2].
+
+  Returns:  VOID
+              No return type
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::GenerateRandomSetOfPointsOnGrid(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
+{
+    RECT rc;
+    GetClientRect(m_hwnd, &rc);
+    int middleX = rc.right / 2;
+    int middleY = rc.bottom / 2;
+    for (size_t i = 0; i < num1; i++)
+    {
+        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.4), (int)(middleY * .95), (int)((middleX * 1.1) > (350) ? (middleX * 1.1) : (350)), (int)(middleY * .55)));
+    }
+    for (size_t i = 0; i < num2; i++)
+    {
+        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.85), (int)(middleY * .5), (int)((middleX * 1.5) > (350) ? (middleX * 1.5) : (350)), (int)(middleY * .1)));
+    }
+}
+
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:   MainWindow::GenerateOrigin
+
+  Summary:  sets the initial position of the origin (used in MinkowskiSum, MinkowskiDiff, and GJK) to be at the center of the main window
+
+  Args:     NONE
+
+  Modifies: [graphOrigin].
+
+  Returns:  VOID
+              No return type, only sets the origin
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::GenerateOrigin()
+{
+    RECT rc;
+    GetClientRect(m_hwnd, &rc);
+
+    std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
+    newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(rc.right / static_cast<FLOAT>(2), rc.bottom / static_cast<FLOAT>(2)), VERTEX_RADIUS, VERTEX_RADIUS);
+    newEllipse->color = D2D1::ColorF(D2D1::ColorF::Green);
+    graphOrigin = newEllipse;
 }
 
 /*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
@@ -586,7 +755,7 @@ void MainWindow::GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::Color
 
   Args:     NONE
 
-  Modifies: [ellipses, ellipses2, convexHull, convexHull2, convexHull3].
+  Modifies: [ellipses, ellipses2, ellipses3, convexHull, convexHull2, convexHull3].
 
   Returns:  VOID
               No return type
@@ -595,6 +764,7 @@ void MainWindow::ClearLists()
 {
     ellipses.clear();
     ellipses2.clear();
+    ellipses3.clear();
     convexHull.clear();
     convexHull2.clear();
     convexHull3.clear();
@@ -604,31 +774,33 @@ void MainWindow::AlgoTest()
 {
     switch (algoMode)
     {
-        case AlgoMode::MinkowskiSum:
-            QuickHull(ellipses, convexHull);
-            QuickHull(ellipses2, convexHull2);
-            //TODO:MinkowskiSum
-            break;
-        case AlgoMode::MinkowskiDifference:
-            QuickHull(ellipses, convexHull);
-            QuickHull(ellipses2, convexHull2);
-            //TODO:MinkowskiDiff
-            break;
-        case AlgoMode::QuickHull:
-            QuickHull(ellipses, convexHull);
-            break;
-        case AlgoMode::PointConvexHullIntersection:
-            QuickHull(ellipses2, convexHull2);
-            if (PointInConvexHull(ellipses.front()->GetVertexPointer(), convexHull2))
-                ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Red);
-            else
-                ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Green);
-            break;
-        case AlgoMode::gjk:
-            QuickHull(ellipses, convexHull);
-            QuickHull(ellipses2, convexHull2);
-            //TODO:GJK
-            break;
+    case AlgoMode::MinkowskiSum:
+        QuickHull(ellipses, convexHull);
+        QuickHull(ellipses2, convexHull2);
+        MinkowskiSum(convexHull, convexHull2, ellipses3);
+        QuickHull(ellipses3, convexHull3);
+        break;
+    case AlgoMode::MinkowskiDifference:
+        QuickHull(ellipses, convexHull);
+        QuickHull(ellipses2, convexHull2);
+        MinkowskiDiff(convexHull, convexHull2, ellipses3);
+        QuickHull(ellipses3, convexHull3);
+        break;
+    case AlgoMode::QuickHull:
+        QuickHull(ellipses, convexHull);
+        break;
+    case AlgoMode::PointConvexHullIntersection:
+        QuickHull(ellipses2, convexHull2);
+        if (PointInConvexHull(ellipses.front()->GetVertexPointer(), convexHull2))
+            ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Red);
+        else
+            ellipses.front()->color = D2D1::ColorF(D2D1::ColorF::Green);
+        break;
+    case AlgoMode::gjk:
+        QuickHull(ellipses, convexHull);
+        QuickHull(ellipses2, convexHull2);
+        MinkowskiDiff(convexHull, convexHull2, ellipses3);
+        QuickHull(ellipses3, convexHull3);
     }
 }
 
@@ -663,9 +835,9 @@ BOOL MainWindow::IsRight(shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b,
             the points into two sets of the points all above and all below the
             line formed by the left and right most points.  Call a recursive method
             which finds the point the is farthest vertically from the line between
-            the left and right most points. Make two more recursive calls with the 
-            left and farthest point and the set of points to the left of their line, 
-            and with the farthest and right points and the set of points to the 
+            the left and right most points. Make two more recursive calls with the
+            left and farthest point and the set of points to the left of their line,
+            and with the farthest and right points and the set of points to the
             left of their line.
 
   Args:     const list<shared_ptr<MyEllipse>>& points
@@ -682,12 +854,12 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
 {
     shared_ptr<D2D_POINT_2F>        left;
     shared_ptr<D2D_POINT_2F>        right;
-    
+
     /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         Function: LineDistance
 
         Summary:  Takes cross product of points a,b,c to determine
-                  verticle distance of c is to the left of the line formed by 
+                  verticle distance of c is to the left of the line formed by
                   a and b.
 
         Args:     shared_ptr<D2D_POINT_2F> a
@@ -709,7 +881,7 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
     /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         Function: IsRightList
 
-        Summary:  Scans a list of points to see if they are right of 
+        Summary:  Scans a list of points to see if they are right of
                   the line formed by a and b
 
         Args:     shared_ptr<D2D_POINT_2F> a
@@ -725,7 +897,7 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
     function<list<shared_ptr<MyEllipse>>(shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>, const list<shared_ptr<MyEllipse>>&)> IsRightList = [&](shared_ptr<D2D_POINT_2F> left, shared_ptr<D2D_POINT_2F> right, const list<shared_ptr<MyEllipse>>& pointSet)->list<shared_ptr<MyEllipse>>
     {
         list <shared_ptr<MyEllipse>> leftPointSet;
-        for (auto const& point : pointSet) 
+        for (auto const& point : pointSet)
         {
             if (IsRight(left, right, point->GetVertexPointer()))
             {
@@ -760,9 +932,9 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
         }
 
         shared_ptr<D2D_POINT_2F> top = pointSet.front()->GetVertexPointer();
-        for (auto const& point : pointSet) 
+        for (auto const& point : pointSet)
         {
-            if (LineDistance(left, right, point->GetVertexPointer())>LineDistance(left, right, top))
+            if (LineDistance(left, right, point->GetVertexPointer()) > LineDistance(left, right, top))
             {
                 top = point->GetVertexPointer();
             }
@@ -771,7 +943,7 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
         FindHull(top, right, IsRightList(top, right, pointSet));
 
     };
-    
+
 
     left = points.front()->GetVertexPointer();
     right = points.front()->GetVertexPointer();
@@ -804,17 +976,13 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
         }
     }
 
-    leftPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
-    rightPoint->color = D2D1::ColorF(D2D1::ColorF::Blue);
-    topPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
-    bottomPoint->color = D2D1::ColorF(D2D1::ColorF::Blue);
-    
+    //leftPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
+    //rightPoint->color = D2D1::ColorF(D2D1::ColorF::Blue);
+    //topPoint->color = D2D1::ColorF(D2D1::ColorF::Red);
+    //bottomPoint->color = D2D1::ColorF(D2D1::ColorF::Blue);
 
     FindHull(left, right, IsRightList(left, right, points));
     FindHull(right, left, IsRightList(right, left, points));
-
-    
-
 }
 
 BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<shared_ptr<D2D_POINT_2F>>& convexHull)
@@ -824,31 +992,100 @@ BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<
 
     int left = 0;
     int right = convexHull.size() - 1;
-    int i = (right + left)/2;
+    int i = (right + left) / 2;
 
-   
-    
     while (left <= right)
     {
-        if(IsRight(convexHull[i], convexHull[0], point) && !IsRight(convexHull[i+1], convexHull[0], point))
-            return IsRight(convexHull[i+1], convexHull[i], point);
-        if(IsRight(convexHull[i], convexHull[0], point))
-            left = i+1;
+        if (IsRight(convexHull[i], convexHull[0], point) && !IsRight(convexHull[i + 1], convexHull[0], point))
+            return IsRight(convexHull[i + 1], convexHull[i], point);
+        if (IsRight(convexHull[i], convexHull[0], point))
+            left = i + 1;
         else
-            right = i-1;
+            right = i - 1;
         i = (right + left) / 2;
     }
 
     return FALSE;
 }
 
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:   MainWindow::MinkowskiSum
 
+  Summary:  Finds the Minkowski Sum of two convex hulls, and puts all of the points generated into a list of MyEllipses.
+            Based on the Minkowski Sum demo from the algorithms for games website.
+
+  Args:     vector<shared_ptr<D2D_POINT_2F>>& convexHull
+              List of vertices that make up the first convex hull
+            vector<shared_ptr<D2D_POINT_2F>>& convexHull2
+              List of vertices that make up the second convex hull
+            list<shared_ptr<MyEllipse>>& points
+              List of vertices that make up the resulting convex hull
+
+  Modifies: [points].
+
+  Returns:  void
+                doesn't return a type, modifies a convex hull to represent the Minkowski sum of two other convex hulls
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::MinkowskiSum(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points)
+{
+    for (std::size_t i = 0; i < convexHull.size(); i++)
+    {
+        shared_ptr<D2D_POINT_2F> point1 = convexHull[i];
+        for (std::size_t j = 0; j < convexHull2.size(); j++)
+        {
+
+            shared_ptr<D2D_POINT_2F> point2 = convexHull2[j];
+            float x = point1->x + point2->x - graphOrigin->ellipse.point.x;
+            float y = point1->y + point2->y - graphOrigin->ellipse.point.y;
+            std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
+            newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(x, y), VERTEX_RADIUS, VERTEX_RADIUS);
+            newEllipse->color = D2D1::ColorF(D2D1::ColorF::Green);
+            points.push_back(newEllipse);
+        }
+    }
+}
+
+/*M+M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M+++M
+  Method:   MainWindow::MinkowskiDiff
+
+  Summary:  Finds the Minkowski Difference of two convex hulls, and puts all of the points generated into a list of MyEllipses.
+            Based on the Minkowski Difference demo from the algorithms for games website.
+
+  Args:     vector<shared_ptr<D2D_POINT_2F>>& convexHull
+              List of vertices that make up the first convex hull
+            vector<shared_ptr<D2D_POINT_2F>>& convexHull2
+              List of vertices that make up the second convex hull
+            list<shared_ptr<MyEllipse>>& points
+              List of vertices that make up the resulting convex hull
+
+  Modifies: [points].
+
+  Returns:  void
+                doesn't return a type, modifies a convex hull to represent the Minkowski difference of two other convex hulls
+M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
+void MainWindow::MinkowskiDiff(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points)
+{
+    for (std::size_t i = 0; i < convexHull.size(); i++)
+    {
+        shared_ptr<D2D_POINT_2F> point1 = convexHull[i];
+        for (std::size_t j = 0; j < convexHull2.size(); j++)
+        {
+            shared_ptr<D2D_POINT_2F> point2 = convexHull2[j];
+            float x = point1->x - point2->x + graphOrigin->ellipse.point.x;
+            float y = point1->y - point2->y + graphOrigin->ellipse.point.y;
+            std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
+            newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(x, y), VERTEX_RADIUS, VERTEX_RADIUS);
+            newEllipse->color = D2D1::ColorF(D2D1::ColorF::Green);
+            points.push_back(newEllipse);
+        }
+    }
+}
 
 
 
 BOOL MainWindow::HitTest(float x, float y)
 {
- 
+
     for (auto i = ellipses.rbegin(); i != ellipses.rend(); ++i)
     {
         if ((*i)->HitTest(x, y))
@@ -858,16 +1095,20 @@ BOOL MainWindow::HitTest(float x, float y)
             return TRUE;
         }
     }
-    for (auto j = ellipses2.rbegin(); j != ellipses2.rend(); ++j)
+    if (algoMode != AlgoMode::PointConvexHullIntersection)
     {
-        if ((*j)->HitTest(x, y))
+        for (auto j = ellipses2.rbegin(); j != ellipses2.rend(); ++j)
         {
-            selection2 = (++j).base();
-            selection1 = false;
-            return TRUE;
+            if ((*j)->HitTest(x, y))
+            {
+                selection2 = (++j).base();
+                selection1 = false;
+                return TRUE;
+            }
         }
     }
     return FALSE;
+
 }
 
 void MainWindow::MoveSelection(float x, float y)
@@ -909,7 +1150,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
 {
     MainWindow win;
 
-    if (!win.Create(L"Draw Circles", WS_OVERLAPPEDWINDOW))
+    if (!win.Create(L"ConvexHullAlgorithms", WS_OVERLAPPEDWINDOW))
     {
         return 0;
     }
@@ -924,6 +1165,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         change how the application takes in user input
         The last button will simply close out the application
     --------------------------------------------------------------------*/
+
+    /*HWND buttonContainer = CreateWindow(
+        L"STATIC",
+        L"OK",
+        WS_BORDER | WS_CHILD | SS_WHITEFRAME | SS_GRAYRECT,
+        0,
+        0,
+        BUTTONWIDTH + 40,
+        BUTTONHEIGHT * 10,
+        win.Window(),
+        (HMENU)99,
+        hInstance,
+        NULL);*/
+
     HWND mdButton = CreateWindow(
         L"BUTTON",  // Predefined class; Unicode assumed 
         L"MINKOWSKI DIFFERENCE",      // Button text 
@@ -933,7 +1188,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
-        (HMENU)MINKOWSKI_DIFFERENCE,       
+        (HMENU)MINKOWSKI_DIFFERENCE,
         hInstance,
         NULL);      // Pointer not needed.
 
@@ -942,7 +1197,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         L"MINKOWSKI SUM",      // Button text 
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
         BUTTONXCOOR,         // x position 
-        BUTTONYCOOR+(BUTTONHEIGHT+BUTTONPADDING),         // y position 
+        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING),         // y position 
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
@@ -955,7 +1210,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         L"QUICK HULL",      // Button text 
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
         BUTTONXCOOR,         // x position 
-        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING)*2,         // y position 
+        BUTTONYCOOR + (BUTTONHEIGHT + BUTTONPADDING) * 2,         // y position 
         BUTTONWIDTH,        // Button width
         BUTTONHEIGHT,        // Button height
         win.Window(),     // Parent window
@@ -1041,7 +1296,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_CREATE:
         if (FAILED(D2D1CreateFactory(
-                D2D1_FACTORY_TYPE_SINGLE_THREADED, &pFactory)))
+            D2D1_FACTORY_TYPE_SINGLE_THREADED, &pFactory)))
         {
             return -1;  // Fail CreateWindowEx.
         }
@@ -1063,15 +1318,15 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         Resize();
         return 0;
 
-    case WM_LBUTTONDOWN: 
+    case WM_LBUTTONDOWN:
         OnLButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (DWORD)wParam);
         return 0;
 
-    case WM_LBUTTONUP: 
+    case WM_LBUTTONUP:
         OnLButtonUp();
         return 0;
 
-    case WM_MOUSEMOVE: 
+    case WM_MOUSEMOVE:
         OnMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (DWORD)wParam);
         return 0;
 
@@ -1111,14 +1366,15 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         }
 
-    //Handle Button Inputs to change the state of the application or close the application
+        //Handle Button Inputs to change the state of the application or close the application
     case BN_CLICKED:
         if (LOWORD(wParam) == MINKOWSKI_DIFFERENCE)
         {
             OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
             ClearSelection();
             ClearLists();
-            GenerateRandomSetOfPoints(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            GenerateRandomSetOfPointsOnGrid(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
+            GenerateOrigin();
             algoMode = AlgoMode::MinkowskiDifference;
             AlgoTest();
             OnPaint();
@@ -1129,7 +1385,8 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             OutputDebugStringW(L"MINKOWSKI_SUM\n");
             ClearSelection();
             ClearLists();
-            GenerateRandomSetOfPoints(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            GenerateRandomSetOfPointsOnGrid(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
+            GenerateOrigin();
             algoMode = AlgoMode::MinkowskiSum;
             AlgoTest();
             OnPaint();
@@ -1140,7 +1397,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             OutputDebugStringW(L"QUICK_HULL\n");
             ClearSelection();
             ClearLists();
-            GenerateRandomSetOfPoints(10, 0, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            GenerateRandomSetOfPoints(10, 0, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
             algoMode = AlgoMode::QuickHull;
             AlgoTest();
             OnPaint();
@@ -1152,7 +1409,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             ClearSelection();
             ClearLists();
             algoMode = AlgoMode::PointConvexHullIntersection;
-            GenerateRandomSetOfPoints(1,10, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            GenerateRandomSetOfPoints(1, 10, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
             AlgoTest();
             OnPaint();
             break;
@@ -1162,7 +1419,8 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             OutputDebugStringW(L"GJK\n");
             ClearSelection();
             ClearLists();
-            GenerateRandomSetOfPoints(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Yellow));
+            GenerateRandomSetOfPointsOnGrid(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
+            GenerateOrigin();
             algoMode = AlgoMode::gjk;
             AlgoTest();
             OnPaint();
@@ -1170,17 +1428,17 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (LOWORD(wParam) == EXIT)
         {
-           OutputDebugStringW(L"EXIT\n");
-           ClearSelection();
-           ClearLists();
-           DiscardGraphicsResources();
-           SafeRelease(&pFactory);
-           PostQuitMessage(0);
-           return 0;
+            OutputDebugStringW(L"EXIT\n");
+            ClearSelection();
+            ClearLists();
+            DiscardGraphicsResources();
+            SafeRelease(&pFactory);
+            PostQuitMessage(0);
+            return 0;
         }
         else
             break;
-        
+
         return 0;
     }
     return DefWindowProc(m_hwnd, uMsg, wParam, lParam);
