@@ -162,7 +162,7 @@ class MainWindow : public BaseWindow<MainWindow>
     BOOL convexHullDrag = FALSE;
 
     FLOAT zoomScale = 1;
-    FLOAT minZoomScale = .6;
+    FLOAT minZoomScale = 0.6f;
     FLOAT maxZoomScale = 8;
 
     shared_ptr<MyEllipse> Selection()
@@ -277,7 +277,7 @@ void MainWindow::OnPaint()
             pRenderTarget->DrawLine(D2D1::Point2F(left, graphOrigin->ellipse.point.y), D2D1::Point2F(right, graphOrigin->ellipse.point.y), pBrush, 3.5f);
             // Now, draw the rest of the grid lines on screen
             // Vertical
-            int lineGap = 20 * zoomScale;
+            float lineGap = 20 * zoomScale;
             for (float i = graphOrigin->ellipse.point.x + lineGap; i < right; i = i + lineGap)
             {
                 pRenderTarget->DrawLine(D2D1::Point2F(i, top), D2D1::Point2F(i, bottom), pBrush, 0.5f);
@@ -303,8 +303,8 @@ void MainWindow::OnPaint()
 
         for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
         {
-            (*i)->ellipse.radiusX = VERTEX_RADIUS * zoomScale;
-            (*i)->ellipse.radiusY = VERTEX_RADIUS * zoomScale;
+            (*i)->ellipse.radiusX = (float)(VERTEX_RADIUS * zoomScale);
+            (*i)->ellipse.radiusY = (float)(VERTEX_RADIUS * zoomScale);
             (*i)->Draw(pRenderTarget, pBrush);
         }
 
@@ -312,8 +312,8 @@ void MainWindow::OnPaint()
         {
             for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
             {
-                (*i)->ellipse.radiusX = VERTEX_RADIUS * zoomScale;
-                (*i)->ellipse.radiusY = VERTEX_RADIUS * zoomScale;
+                (*i)->ellipse.radiusX = (float)(VERTEX_RADIUS * zoomScale);
+                (*i)->ellipse.radiusY = (float)(VERTEX_RADIUS * zoomScale);
                 (*i)->Draw(pRenderTarget, pBrush);
             }
         }
@@ -880,7 +880,7 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
      -----------------------------------------------------------------F-F*/
     function<int(shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>)> LineDistance = [](shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c)->int
     {
-        return abs((c->y - a->y) * (b->x - a->x) -
+        return (int)abs((c->y - a->y) * (b->x - a->x) -
             (b->y - a->y) * (c->x - a->x));
     };
     /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1358,7 +1358,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                     }
                     else {
                         zoomScale *= 1.1f;
-                        ScalePoints(1.1);
+                        ScalePoints((float)1.1);
                     }
                 }
                 else
@@ -1369,7 +1369,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                     }
                     else {
                         zoomScale /= 1.1f;
-                        ScalePoints(1 / 1.1);
+                        ScalePoints((float)(1 / 1.1));
                     }
                 }
                 nDelta = 0;
