@@ -162,7 +162,7 @@ class MainWindow : public BaseWindow<MainWindow>
     BOOL convexHullDrag = FALSE;
 
     FLOAT zoomScale = 1;
-    FLOAT minZoomScale = 0.6f;
+    FLOAT minZoomScale = .6;
     FLOAT maxZoomScale = 8;
 
     shared_ptr<MyEllipse> Selection()
@@ -277,7 +277,7 @@ void MainWindow::OnPaint()
             pRenderTarget->DrawLine(D2D1::Point2F(left, graphOrigin->ellipse.point.y), D2D1::Point2F(right, graphOrigin->ellipse.point.y), pBrush, 3.5f);
             // Now, draw the rest of the grid lines on screen
             // Vertical
-            float lineGap = 20 * zoomScale;
+            int lineGap = 20 * zoomScale;
             for (float i = graphOrigin->ellipse.point.x + lineGap; i < right; i = i + lineGap)
             {
                 pRenderTarget->DrawLine(D2D1::Point2F(i, top), D2D1::Point2F(i, bottom), pBrush, 0.5f);
@@ -303,8 +303,8 @@ void MainWindow::OnPaint()
 
         for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
         {
-            (*i)->ellipse.radiusX = (float)(VERTEX_RADIUS * zoomScale);
-            (*i)->ellipse.radiusY = (float)(VERTEX_RADIUS * zoomScale);
+            (*i)->ellipse.radiusX = VERTEX_RADIUS * zoomScale;
+            (*i)->ellipse.radiusY = VERTEX_RADIUS * zoomScale;
             (*i)->Draw(pRenderTarget, pBrush);
         }
 
@@ -312,8 +312,8 @@ void MainWindow::OnPaint()
         {
             for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
             {
-                (*i)->ellipse.radiusX = (float)(VERTEX_RADIUS * zoomScale);
-                (*i)->ellipse.radiusY = (float)(VERTEX_RADIUS * zoomScale);
+                (*i)->ellipse.radiusX = VERTEX_RADIUS * zoomScale;
+                (*i)->ellipse.radiusY = VERTEX_RADIUS * zoomScale;
                 (*i)->Draw(pRenderTarget, pBrush);
             }
         }
@@ -880,7 +880,7 @@ void MainWindow::QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<sha
      -----------------------------------------------------------------F-F*/
     function<int(shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>, shared_ptr<D2D_POINT_2F>)> LineDistance = [](shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c)->int
     {
-        return (int)abs((c->y - a->y) * (b->x - a->x) -
+        return abs((c->y - a->y) * (b->x - a->x) -
             (b->y - a->y) * (c->x - a->x));
     };
     /*F+F+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -994,7 +994,7 @@ BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<
 {
     if (IsRight(convexHull[convexHull.size() - 1], convexHull[0], point))      
     {
-    /*    OutputDebugStringW(L"Nope\n");*/
+        OutputDebugStringW(L"Nope\n");
         return FALSE;
     } 
 
@@ -1004,10 +1004,11 @@ BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<
 
     while ((left <= right) && i != 0)
     {
-
-        /*wchar_t s[256];
+       /* if (i == 0)
+            return FALSE;*/
+        wchar_t s[256];
         _swprintf(s, L"current index %d, left %d, right %d, \n", i, left, right);
-        OutputDebugStringW(s);*/
+        OutputDebugStringW(s);
         if (IsRight(convexHull[i], convexHull[0], point) && !IsRight(convexHull[i + 1], convexHull[0], point))
             return IsRight(convexHull[i + 1], convexHull[i], point);
         if (IsRight(convexHull[i], convexHull[0], point))
@@ -1018,7 +1019,7 @@ BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<
         i = (right + left) / 2;
         
     }
-   /* OutputDebugStringW(L"Touch Grass\n");*/
+    OutputDebugStringW(L"Touch Grass\n");
     return FALSE;
 }
 
@@ -1367,7 +1368,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                     }
                     else {
                         zoomScale *= 1.1f;
-                        ScalePoints((float)1.1);
+                        ScalePoints(1.1);
                     }
                 }
                 else
@@ -1378,7 +1379,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                     }
                     else {
                         zoomScale /= 1.1f;
-                        ScalePoints((float)(1 / 1.1));
+                        ScalePoints(1 / 1.1);
                     }
                 }
                 nDelta = 0;
