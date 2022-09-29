@@ -120,7 +120,6 @@ class MainWindow : public BaseWindow<MainWindow>
 {
     enum Mode
     {
-        DrawMode,
         SelectMode,
         DragMode
     };
@@ -162,6 +161,9 @@ class MainWindow : public BaseWindow<MainWindow>
     BOOL noSelection;
     BOOL convexHullDrag = FALSE;
 
+    FLOAT zoomScale = 1;
+    FLOAT minZoomScale = .6;
+    FLOAT maxZoomScale = 8;
 
     shared_ptr<MyEllipse> Selection()
     {
@@ -178,6 +180,7 @@ class MainWindow : public BaseWindow<MainWindow>
     }
 
     void    ClearSelection() { selection = ellipses.end(); selection2 = ellipses2.end(); }
+    void    ResetZoom();
     HRESULT InsertEllipse(float x, float y);
     std::shared_ptr<MyEllipse> GenerateRandomEllipse(D2D1::ColorF color, int maxX, int maxY, int minX, int minY);
     void GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2);
@@ -196,6 +199,7 @@ class MainWindow : public BaseWindow<MainWindow>
     void    OnLButtonUp();
     void    OnMouseMove(int pixelX, int pixelY, DWORD flags);
     void    OnKeyDown(UINT vkey);
+    void    ScalePoints(float scale);
 
     void ClearLists();
     void AlgoTest();
@@ -273,20 +277,21 @@ void MainWindow::OnPaint()
             pRenderTarget->DrawLine(D2D1::Point2F(left, graphOrigin->ellipse.point.y), D2D1::Point2F(right, graphOrigin->ellipse.point.y), pBrush, 3.5f);
             // Now, draw the rest of the grid lines on screen
             // Vertical
-            for (float i = graphOrigin->ellipse.point.x + 20; i < right; i = i + 20)
+            int lineGap = 20 * zoomScale;
+            for (float i = graphOrigin->ellipse.point.x + lineGap; i < right; i = i + lineGap)
             {
                 pRenderTarget->DrawLine(D2D1::Point2F(i, top), D2D1::Point2F(i, bottom), pBrush, 0.5f);
             }
-            for (float i = graphOrigin->ellipse.point.x - 20; i > left; i = i - 20)
+            for (float i = graphOrigin->ellipse.point.x - lineGap; i > left; i = i - lineGap)
             {
                 pRenderTarget->DrawLine(D2D1::Point2F(i, top), D2D1::Point2F(i, bottom), pBrush, 0.5f);
             }
             // Horizontal
-            for (float i = graphOrigin->ellipse.point.y + 20; i < bottom; i = i + 20)
+            for (float i = graphOrigin->ellipse.point.y + lineGap; i < bottom; i = i + lineGap)
             {
                 pRenderTarget->DrawLine(D2D1::Point2F(left, i), D2D1::Point2F(right, i), pBrush, 0.5f);
             }
-            for (float i = graphOrigin->ellipse.point.y - 20; i > top; i = i - 20)
+            for (float i = graphOrigin->ellipse.point.y - lineGap; i > top; i = i - lineGap)
             {
                 pRenderTarget->DrawLine(D2D1::Point2F(left, i), D2D1::Point2F(right, i), pBrush, 0.5f);
             }
@@ -298,6 +303,8 @@ void MainWindow::OnPaint()
 
         for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
         {
+            (*i)->ellipse.radiusX = VERTEX_RADIUS * zoomScale;
+            (*i)->ellipse.radiusY = VERTEX_RADIUS * zoomScale;
             (*i)->Draw(pRenderTarget, pBrush);
         }
 
@@ -305,6 +312,8 @@ void MainWindow::OnPaint()
         {
             for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
             {
+                (*i)->ellipse.radiusX = VERTEX_RADIUS * zoomScale;
+                (*i)->ellipse.radiusY = VERTEX_RADIUS * zoomScale;
                 (*i)->Draw(pRenderTarget, pBrush);
             }
         }
@@ -386,6 +395,32 @@ void MainWindow::Resize()
     }
 }
 
+void MainWindow::ResetZoom()
+{
+    zoomScale = 1;
+}
+
+void MainWindow::ScalePoints(float scale)
+{
+
+    for (auto i = ellipses.begin(); i != ellipses.end(); ++i)
+    {
+        (*i)->ellipse.point.x = graphOrigin->ellipse.point.x + (((*i)->ellipse.point.x - graphOrigin->ellipse.point.x) * scale);
+        (*i)->ellipse.point.y = graphOrigin->ellipse.point.y + (((*i)->ellipse.point.y - graphOrigin->ellipse.point.y) * scale);
+    }
+
+    for (auto i = ellipses2.begin(); i != ellipses2.end(); ++i)
+    {
+        (*i)->ellipse.point.x = graphOrigin->ellipse.point.x + (((*i)->ellipse.point.x - graphOrigin->ellipse.point.x) * scale);
+        (*i)->ellipse.point.y = graphOrigin->ellipse.point.y + (((*i)->ellipse.point.y - graphOrigin->ellipse.point.y) * scale);
+    }
+    convexHull.clear();
+    convexHull2.clear();
+    convexHull3.clear();
+    ellipses3.clear();
+    AlgoTest();
+}
+
 void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
 {
     const float dipX = DPIScale::PixelsToDipsX(pixelX);
@@ -394,21 +429,6 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
     mousePoint.x = dipX;
     mousePoint.y = dipY;
 
-
-    //if (mode == DrawMode)
-    //{
-    //    POINT pt = { pixelX, pixelY };
-
-    //    if (DragDetect(m_hwnd, pt))
-    //    {
-    //        SetCapture(m_hwnd);
-    //    
-    //        // Start a new ellipse.
-    //        InsertEllipse(dipX, dipY);
-    //    }
-    //}
-    //else
-    //{
     ClearSelection();
 
     if (HitTest(dipX, dipY))
@@ -485,12 +505,7 @@ void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
 
 void MainWindow::OnLButtonUp()
 {
-    if ((mode == DrawMode) && Selection())
-    {
-        ClearSelection();
-        InvalidateRect(m_hwnd, NULL, FALSE);
-    }
-    else if (mode == DragMode)
+    if (mode == DragMode)
     {
         SetMode(SelectMode);
     }
@@ -505,21 +520,11 @@ void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
 
     if ((flags & MK_LBUTTON) && (Selection() || convexHullDrag))
     {
-        if (mode == DrawMode)
+        if (mode == DragMode)
         {
-            // Resize the ellipse.
-            const float width = (dipX - ptMouse.x) / 2;
-            const float height = (dipY - ptMouse.y) / 2;
-            const float x1 = ptMouse.x + width;
-            const float y1 = ptMouse.y + height;
-
-            Selection()->ellipse = D2D1::Ellipse(D2D1::Point2F(x1, y1), width, height);
-        }
-        else if (mode == DragMode)
-        {
-            convexHull3.clear();
             convexHull.clear();
             convexHull2.clear();
+            convexHull3.clear();
             ellipses3.clear();
 
             if (convexHullDrag)
@@ -682,11 +687,11 @@ void MainWindow::GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::Color
     int middleY = rc.bottom / 2;
     for (size_t i = 0; i < num1; i++)
     {
-        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.8), (int)(middleY * 1.8), (int)((middleX * .5) > (350) ? (middleX * .5) : (350)), (int)(middleY * .2)));
+        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.2), (int)(middleY * 1.2), (int)((middleX * .5) > (350) ? (middleX * .5) : (350)), (int)(middleY * .2)));
     }
     for (size_t i = 0; i < num2; i++)
     {
-        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.6), (int)(middleY * 1.3), (int)((middleX * .6) > (350) ? (middleX * .6) : (350)), (int)(middleY * .5)));
+        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.4), (int)(middleY * 1.4), (int)((middleX * .4) > (350) ? (middleX * .4) : (350)), (int)(middleY * .35)));
     }
 }
 
@@ -713,15 +718,15 @@ void MainWindow::GenerateRandomSetOfPointsOnGrid(size_t num1, size_t num2, D2D1:
 {
     RECT rc;
     GetClientRect(m_hwnd, &rc);
-    int middleX = rc.right / 2;
-    int middleY = rc.bottom / 2;
+    int middleX = (rc.right - rc.left) / 2;
+    int middleY = (rc.bottom - rc.top) / 2;
     for (size_t i = 0; i < num1; i++)
     {
-        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.4), (int)(middleY * .95), (int)((middleX * 1.1) > (350) ? (middleX * 1.1) : (350)), (int)(middleY * .55)));
+        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.35), (int)(middleY * .95), (int)((middleX * 1.05) > (350) ? (middleX * 1.05) : (350)), (int)(middleY * .55)));
     }
     for (size_t i = 0; i < num2; i++)
     {
-        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.85), (int)(middleY * .5), (int)((middleX * 1.5) > (350) ? (middleX * 1.5) : (350)), (int)(middleY * .1)));
+        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.6), (int)(middleY * .55), (int)((middleX * 1.4) > (350) ? (middleX * 1.4) : (350)), (int)(middleY * .1)));
     }
 }
 
@@ -729,7 +734,7 @@ void MainWindow::GenerateRandomSetOfPointsOnGrid(size_t num1, size_t num2, D2D1:
   Method:   MainWindow::GenerateOrigin
 
   Summary:  sets the initial position of the origin (used in MinkowskiSum, MinkowskiDiff, and GJK) to be at the center of the main window
-
+    
   Args:     NONE
 
   Modifies: [graphOrigin].
@@ -1128,10 +1133,6 @@ void MainWindow::SetMode(Mode m)
     LPWSTR cursor;
     switch (mode)
     {
-    case DrawMode:
-        cursor = IDC_CROSS;
-        break;
-
     case SelectMode:
         cursor = IDC_HAND;
         break;
@@ -1257,7 +1258,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         (HMENU)EXIT,
         hInstance,
         NULL);      // Pointer not needed.
-
+   
     ShowWindow(win.Window(), nCmdShow);
 
     ShowWindow(mdButton, SW_SHOW);
@@ -1342,35 +1343,58 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         OnKeyDown((UINT)wParam);
         return 0;
 
+    case WM_MOUSEWHEEL:
+        if (algoMode == AlgoMode::MinkowskiSum || algoMode == AlgoMode::MinkowskiDifference || algoMode == AlgoMode::gjk)
+        {
+            static int nDelta = 0;
+            nDelta += GET_WHEEL_DELTA_WPARAM(wParam);
+            if (abs(nDelta) >= WHEEL_DELTA)
+            {
+                if (nDelta > 0)
+                {
+                    if (zoomScale * 1.1 >= maxZoomScale) {
+                        ScalePoints(maxZoomScale / zoomScale);
+                        zoomScale = maxZoomScale;
+                    }
+                    else {
+                        zoomScale *= 1.1f;
+                        ScalePoints(1.1);
+                    }
+                }
+                else
+                {
+                    if (zoomScale / 1.1 <= minZoomScale) {
+                        ScalePoints(minZoomScale / zoomScale);
+                        zoomScale = minZoomScale;
+                    }
+                    else {
+                        zoomScale /= 1.1f;
+                        ScalePoints(1 / 1.1);
+                    }
+                }
+                nDelta = 0;
+                InvalidateRect(m_hwnd, NULL, FALSE);
+            }
+        }
+        break;
+
     case WM_COMMAND:
         switch (LOWORD(wParam))
         {
-        case ID_DRAW_MODE:
-            SetMode(DrawMode);
-            break;
-
         case ID_SELECT_MODE:
             SetMode(SelectMode);
             break;
 
         case ID_TOGGLE_MODE:
-            if (mode == DrawMode)
-            {
-                SetMode(SelectMode);
-            }
-            else
-            {
-                SetMode(DrawMode);
-            }
             break;
 
         }
-
         //Handle Button Inputs to change the state of the application or close the application
     case BN_CLICKED:
         if (LOWORD(wParam) == MINKOWSKI_DIFFERENCE)
         {
             OutputDebugStringW(L"MINKOWSKI_DIFFERENCE\n");
+            ResetZoom();
             ClearSelection();
             ClearLists();
             GenerateRandomSetOfPointsOnGrid(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
@@ -1383,6 +1407,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == MINKOWSKI_SUM)
         {
             OutputDebugStringW(L"MINKOWSKI_SUM\n");
+            ResetZoom();
             ClearSelection();
             ClearLists();
             GenerateRandomSetOfPointsOnGrid(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
@@ -1395,6 +1420,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == QUICK_HULL)
         {
             OutputDebugStringW(L"QUICK_HULL\n");
+            ResetZoom();
             ClearSelection();
             ClearLists();
             GenerateRandomSetOfPoints(10, 0, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
@@ -1406,6 +1432,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == POINT_CONVEX_HULL_INTERSECTION)
         {
             OutputDebugStringW(L"POINT_CONVEX_HULL_INTERSECTION\n");
+            ResetZoom();
             ClearSelection();
             ClearLists();
             algoMode = AlgoMode::PointConvexHullIntersection;
@@ -1417,6 +1444,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == GJK)
         {
             OutputDebugStringW(L"GJK\n");
+            ResetZoom();
             ClearSelection();
             ClearLists();
             GenerateRandomSetOfPointsOnGrid(6, 6, D2D1::ColorF(D2D1::ColorF::Green), D2D1::ColorF(D2D1::ColorF::Green));
@@ -1429,6 +1457,7 @@ LRESULT MainWindow::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == EXIT)
         {
             OutputDebugStringW(L"EXIT\n");
+            ResetZoom();
             ClearSelection();
             ClearLists();
             DiscardGraphicsResources();
