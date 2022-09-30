@@ -65,7 +65,7 @@ public:
     template <typename T>
     static float PixelsToDipsX(T x)
     {
-        return static_cast<float>(x) / scaleX;
+        return static_cast<float>(x) / scaleX - BUTTON_AREA_WIDTH/scaleX;
     }
 
     template <typename T>
@@ -436,7 +436,7 @@ void MainWindow::ScalePoints(float scale)
 
 void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
 {
-    const float dipX = DPIScale::PixelsToDipsX(pixelX)-BUTTON_AREA_WIDTH;
+    const float dipX = DPIScale::PixelsToDipsX(pixelX);
     const float dipY = DPIScale::PixelsToDipsY(pixelY);
     D2D1_POINT_2F mousePoint;
     mousePoint.x = dipX;
@@ -528,7 +528,7 @@ void MainWindow::OnLButtonUp()
 
 void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
 {
-    const float dipX = DPIScale::PixelsToDipsX(pixelX)-BUTTON_AREA_WIDTH;
+    const float dipX = DPIScale::PixelsToDipsX(pixelX);
     const float dipY = DPIScale::PixelsToDipsY(pixelY);
 
     if ((flags & MK_LBUTTON) && (Selection() || convexHullDrag))
@@ -1211,7 +1211,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         WS_BORDER | WS_CHILD | SS_WHITEFRAME | SS_GRAYRECT | WS_VISIBLE,
         BUTTON_AREA_WIDTH,
         0,
-        rc.right,
+        rc.right-BUTTON_AREA_WIDTH,
         rc.bottom,
         win.Window(),
         (HMENU)99,
