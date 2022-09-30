@@ -263,6 +263,12 @@ void MainWindow::OnPaint()
     {
         
         PAINTSTRUCT ps;
+
+        HDC hdc = BeginPaint(m_hwnd, &ps);
+        FillRect(hdc, &ps.rcPaint, (HBRUSH)(D2D1::ColorF::Black));
+
+        EndPaint(m_hwnd, &ps);
+
         BeginPaint(GetWindow(m_hwnd, GW_CHILD), &ps);
 
         pRenderTarget->BeginDraw();
@@ -378,11 +384,16 @@ void MainWindow::OnPaint()
         }
 
         hr = pRenderTarget->EndDraw();
+
+        
+
         if (FAILED(hr) || hr == D2DERR_RECREATE_TARGET)
         {
             DiscardGraphicsResources();
         }
         EndPaint(m_hwnd, &ps);
+
+        
     }
 }
 
@@ -395,7 +406,7 @@ void MainWindow::Resize()
 
         HWND renderArea = GetWindow(m_hwnd, GW_CHILD);
 
-        MoveWindow(renderArea,rc.left+BUTTON_AREA_WIDTH,rc.top,rc.right,rc.bottom,TRUE);
+        MoveWindow(renderArea, rc.left + BUTTON_AREA_WIDTH, rc.top, rc.right - BUTTON_AREA_WIDTH, rc.bottom, TRUE);
         /*RECT rc;*/
         GetClientRect(renderArea, &rc);
 
@@ -761,6 +772,7 @@ void MainWindow::GenerateOrigin()
     GetClientRect(GetWindow(m_hwnd, GW_CHILD), &rc);
 
     std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
+    /*rc.right = rc.right - rc.right / BUTTON_AREA_WIDTH;*/
     newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(rc.right / static_cast<FLOAT>(2), rc.bottom / static_cast<FLOAT>(2)), VERTEX_RADIUS, VERTEX_RADIUS);
     newEllipse->color = D2D1::ColorF(D2D1::ColorF::Green);
     graphOrigin = newEllipse;
