@@ -5,7 +5,7 @@
 #include <list>
 #include <memory>
 #include <vector>
-using namespace std;
+using namespace std; 
 
 #pragma comment(lib, "d2d1")
 
@@ -34,6 +34,9 @@ using namespace std;
 #define MAX_VERTEX_X 400
 #define MIN_VERTEX_Y 100
 #define MAX_VERTEX_Y 300
+
+//button area Macros
+#define BUTTON_AREA_WIDTH 350
 
 
 template <class T> void SafeRelease(T** ppT)
@@ -206,8 +209,8 @@ class MainWindow : public BaseWindow<MainWindow>
     BOOL IsRight(shared_ptr<D2D_POINT_2F> a, shared_ptr<D2D_POINT_2F> b, shared_ptr<D2D_POINT_2F> c);
     void QuickHull(const list<shared_ptr<MyEllipse>>& points, vector<shared_ptr<D2D_POINT_2F>>& convexHull);
     BOOL PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<shared_ptr<D2D_POINT_2F>>& convexHull);
-    void MinkowskiSum(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points);
-    void MinkowskiDiff(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points);
+    void MinkowskiSum(const vector<shared_ptr<D2D_POINT_2F>>& convexHull,const  vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points);
+    void MinkowskiDiff(const vector<shared_ptr<D2D_POINT_2F>>& convexHull,const vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points);
 
 public:
 
@@ -225,14 +228,17 @@ HRESULT MainWindow::CreateGraphicsResources()
     HRESULT hr = S_OK;
     if (pRenderTarget == NULL)
     {
+        
+        HWND renderArea = GetWindow(m_hwnd, GW_CHILD);
+
         RECT rc;
-        GetClientRect(m_hwnd, &rc);
+        GetClientRect(renderArea, &rc);
 
         D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
 
         hr = pFactory->CreateHwndRenderTarget(
             D2D1::RenderTargetProperties(),
-            D2D1::HwndRenderTargetProperties(m_hwnd, size),
+            D2D1::HwndRenderTargetProperties(renderArea, size),
             &pRenderTarget);
 
         if (SUCCEEDED(hr))
@@ -255,8 +261,9 @@ void MainWindow::OnPaint()
     HRESULT hr = CreateGraphicsResources();
     if (SUCCEEDED(hr))
     {
+        
         PAINTSTRUCT ps;
-        BeginPaint(m_hwnd, &ps);
+        BeginPaint(GetWindow(m_hwnd, GW_CHILD), &ps);
 
         pRenderTarget->BeginDraw();
 
@@ -265,7 +272,7 @@ void MainWindow::OnPaint()
         if (algoMode == AlgoMode::MinkowskiSum || algoMode == AlgoMode::MinkowskiDifference || algoMode == AlgoMode::gjk)
         {
             RECT rc;
-            GetClientRect(m_hwnd, &rc);
+            GetClientRect(GetWindow(m_hwnd, GW_CHILD), &rc);
             pBrush->SetColor(D2D1::ColorF(D2D1::ColorF::DimGray));
             float top = (float)rc.top;
             float bottom = (float)rc.bottom;
@@ -383,14 +390,16 @@ void MainWindow::Resize()
 {
     if (pRenderTarget != NULL)
     {
+        HWND renderArea = GetWindow(m_hwnd, GW_CHILD);
+
         RECT rc;
-        GetClientRect(m_hwnd, &rc);
+        GetClientRect(renderArea, &rc);
 
         D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
 
         pRenderTarget->Resize(size);
 
-        InvalidateRect(m_hwnd, NULL, FALSE);
+        InvalidateRect(renderArea, NULL, FALSE);
 
     }
 }
@@ -682,7 +691,7 @@ M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 void MainWindow::GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
 {
     RECT rc;
-    GetClientRect(m_hwnd, &rc);
+    GetClientRect(GetWindow(m_hwnd, GW_CHILD), &rc);
     int middleX = rc.right / 2;
     int middleY = rc.bottom / 2;
     for (size_t i = 0; i < num1; i++)
@@ -717,7 +726,7 @@ M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 void MainWindow::GenerateRandomSetOfPointsOnGrid(size_t num1, size_t num2, D2D1::ColorF color1, D2D1::ColorF color2)
 {
     RECT rc;
-    GetClientRect(m_hwnd, &rc);
+    GetClientRect(GetWindow(m_hwnd, GW_CHILD), &rc);
     int middleX = (rc.right - rc.left) / 2;
     int middleY = (rc.bottom - rc.top) / 2;
     for (size_t i = 0; i < num1; i++)
@@ -745,7 +754,7 @@ M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
 void MainWindow::GenerateOrigin()
 {
     RECT rc;
-    GetClientRect(m_hwnd, &rc);
+    GetClientRect(GetWindow(m_hwnd, GW_CHILD), &rc);
 
     std::shared_ptr<MyEllipse> newEllipse = std::make_shared<MyEllipse>();
     newEllipse->ellipse = D2D1::Ellipse(D2D1::Point2F(rc.right / static_cast<FLOAT>(2), rc.bottom / static_cast<FLOAT>(2)), VERTEX_RADIUS, VERTEX_RADIUS);
@@ -1040,7 +1049,7 @@ BOOL MainWindow::PointInConvexHull(shared_ptr<D2D_POINT_2F> point, const vector<
   Returns:  void
                 doesn't return a type, modifies a convex hull to represent the Minkowski sum of two other convex hulls
 M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
-void MainWindow::MinkowskiSum(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points)
+void MainWindow::MinkowskiSum(const vector<shared_ptr<D2D_POINT_2F>>& convexHull,const vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points)
 {
     for (std::size_t i = 0; i < convexHull.size(); i++)
     {
@@ -1077,7 +1086,7 @@ void MainWindow::MinkowskiSum(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vect
   Returns:  void
                 doesn't return a type, modifies a convex hull to represent the Minkowski difference of two other convex hulls
 M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M---M-M*/
-void MainWindow::MinkowskiDiff(vector<shared_ptr<D2D_POINT_2F>>& convexHull, vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points)
+void MainWindow::MinkowskiDiff(const vector<shared_ptr<D2D_POINT_2F>>& convexHull,const vector<shared_ptr<D2D_POINT_2F>>& convexHull2, list<shared_ptr<MyEllipse>>& points)
 {
     for (std::size_t i = 0; i < convexHull.size(); i++)
     {
@@ -1176,18 +1185,35 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         The last button will simply close out the application
     --------------------------------------------------------------------*/
 
-    /*HWND buttonContainer = CreateWindow(
+    //HWND buttonContainer = CreateWindow(
+    //    L"STATIC",
+    //    L"OK",
+    //    WS_BORDER | WS_CHILD | SS_WHITEFRAME | SS_GRAYRECT,
+    //    0,
+    //    0,
+    //    BUTTONWIDTH + 40,
+    //    BUTTONHEIGHT * 10,
+    //    win.Window(),
+    //    (HMENU)99,
+    //    hInstance,
+    //    NULL);
+    RECT rc;
+    GetClientRect(win.Window(), &rc);
+
+
+    HWND renderArea = CreateWindow(
         L"STATIC",
         L"OK",
-        WS_BORDER | WS_CHILD | SS_WHITEFRAME | SS_GRAYRECT,
+        WS_BORDER | WS_CHILD | SS_WHITEFRAME | SS_GRAYRECT | WS_VISIBLE,
+        BUTTON_AREA_WIDTH,
         0,
-        0,
-        BUTTONWIDTH + 40,
-        BUTTONHEIGHT * 10,
+        rc.right,
+        rc.bottom,
         win.Window(),
         (HMENU)99,
         hInstance,
-        NULL);*/
+        NULL);
+   
 
     HWND mdButton = CreateWindow(
         L"BUTTON",  // Predefined class; Unicode assumed 
@@ -1267,6 +1293,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         (HMENU)EXIT,
         hInstance,
         NULL);      // Pointer not needed.
+
+   
    
     ShowWindow(win.Window(), nCmdShow);
 
