@@ -390,9 +390,13 @@ void MainWindow::Resize()
 {
     if (pRenderTarget != NULL)
     {
+        RECT rc;
+        GetClientRect(m_hwnd, &rc);
+
         HWND renderArea = GetWindow(m_hwnd, GW_CHILD);
 
-        RECT rc;
+        MoveWindow(renderArea,rc.left+BUTTON_AREA_WIDTH,rc.top,rc.right,rc.bottom,TRUE);
+        /*RECT rc;*/
         GetClientRect(renderArea, &rc);
 
         D2D1_SIZE_U size = D2D1::SizeU(rc.right, rc.bottom);
@@ -432,7 +436,7 @@ void MainWindow::ScalePoints(float scale)
 
 void MainWindow::OnLButtonDown(int pixelX, int pixelY, DWORD flags)
 {
-    const float dipX = DPIScale::PixelsToDipsX(pixelX);
+    const float dipX = DPIScale::PixelsToDipsX(pixelX)-BUTTON_AREA_WIDTH;
     const float dipY = DPIScale::PixelsToDipsY(pixelY);
     D2D1_POINT_2F mousePoint;
     mousePoint.x = dipX;
@@ -524,7 +528,7 @@ void MainWindow::OnLButtonUp()
 
 void MainWindow::OnMouseMove(int pixelX, int pixelY, DWORD flags)
 {
-    const float dipX = DPIScale::PixelsToDipsX(pixelX);
+    const float dipX = DPIScale::PixelsToDipsX(pixelX)-BUTTON_AREA_WIDTH;
     const float dipY = DPIScale::PixelsToDipsY(pixelY);
 
     if ((flags & MK_LBUTTON) && (Selection() || convexHullDrag))
