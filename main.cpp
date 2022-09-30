@@ -264,11 +264,6 @@ void MainWindow::OnPaint()
         
         PAINTSTRUCT ps;
 
-        HDC hdc = BeginPaint(m_hwnd, &ps);
-        FillRect(hdc, &ps.rcPaint, (HBRUSH)(D2D1::ColorF::Black));
-
-        EndPaint(m_hwnd, &ps);
-
         BeginPaint(GetWindow(m_hwnd, GW_CHILD), &ps);
 
         pRenderTarget->BeginDraw();
@@ -401,6 +396,13 @@ void MainWindow::Resize()
 {
     if (pRenderTarget != NULL)
     {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(m_hwnd, &ps);
+        ps.rcPaint.right = (long)BUTTON_AREA_WIDTH;
+        FillRect(hdc, &ps.rcPaint, CreateSolidBrush(RGB(0, 0, 0)));
+        EndPaint(m_hwnd, &ps);
+
+
         RECT rc;
         GetClientRect(m_hwnd, &rc);
 
@@ -711,11 +713,11 @@ void MainWindow::GenerateRandomSetOfPoints(size_t num1, size_t num2, D2D1::Color
     int middleY = rc.bottom / 2;
     for (size_t i = 0; i < num1; i++)
     {
-        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.2), (int)(middleY * 1.2), (int)((middleX * .5) > (350) ? (middleX * .5) : (350)), (int)(middleY * .2)));
+        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.2), (int)(middleY * 1.2), (int)(middleX * .5), (int)(middleY * .2)));
     }
     for (size_t i = 0; i < num2; i++)
     {
-        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.4), (int)(middleY * 1.4), (int)((middleX * .4) > (350) ? (middleX * .4) : (350)), (int)(middleY * .35)));
+        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.4), (int)(middleY * 1.4), (int)(middleX * .4), (int)(middleY * .35)));
     }
 }
 
@@ -746,11 +748,11 @@ void MainWindow::GenerateRandomSetOfPointsOnGrid(size_t num1, size_t num2, D2D1:
     int middleY = (rc.bottom - rc.top) / 2;
     for (size_t i = 0; i < num1; i++)
     {
-        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.35), (int)(middleY * .95), (int)((middleX * 1.05) > (350) ? (middleX * 1.05) : (350)), (int)(middleY * .55)));
+        ellipses.emplace_back(GenerateRandomEllipse(color1, (int)(middleX * 1.35), (int)(middleY * .95), (int)(middleX * 1.05), (int)(middleY * .55)));
     }
     for (size_t i = 0; i < num2; i++)
     {
-        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.6), (int)(middleY * .55), (int)((middleX * 1.4) > (350) ? (middleX * 1.4) : (350)), (int)(middleY * .1)));
+        ellipses2.emplace_back(GenerateRandomEllipse(color2, (int)(middleX * 1.6), (int)(middleY * .55), (int)(middleX * 1.4), (int)(middleY * .1)));
     }
 }
 
@@ -1213,6 +1215,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
     //    (HMENU)99,
     //    hInstance,
     //    NULL);
+
+
+
     RECT rc;
     GetClientRect(win.Window(), &rc);
 
@@ -1229,7 +1234,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         (HMENU)99,
         hInstance,
         NULL);
-   
 
     HWND mdButton = CreateWindow(
         L"BUTTON",  // Predefined class; Unicode assumed 
@@ -1311,8 +1315,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
         NULL);      // Pointer not needed.
 
    
-   
     ShowWindow(win.Window(), nCmdShow);
+
+    PAINTSTRUCT ps;
+    HDC hdc = BeginPaint(win.Window(), &ps);
+    FillRect(hdc, &ps.rcPaint, CreateSolidBrush(RGB(0, 0, 0)));
+    EndPaint(win.Window(), &ps);
+
+    ShowWindow(renderArea, SW_SHOW);
+    UpdateWindow(renderArea);
 
     ShowWindow(mdButton, SW_SHOW);
     UpdateWindow(mdButton);
